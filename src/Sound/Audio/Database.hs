@@ -63,7 +63,6 @@ module Sound.Audio.Database ( QueryException(..)
                             , euclideanFlag
                             , kullbackLeiblerDivergenceFlag
                             , RefinementFlag(..)
-                            , combineRefinementFlags
                             , includeKeyListFlag
                             , excludeKeyListFlag
                             , radiusFlag

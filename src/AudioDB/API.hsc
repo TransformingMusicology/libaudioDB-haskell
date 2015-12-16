@@ -53,7 +53,6 @@ module AudioDB.API ( ADB
                    , euclideanFlag
                    , kullbackLeiblerDivergenceFlag
                    , RefinementFlag(..)
-                   , combineRefinementFlags
                    , includeKeyListFlag
                    , excludeKeyListFlag
                    , radiusFlag
@@ -85,6 +84,7 @@ module AudioDB.API ( ADB
 
 import           Data.Char (chr)
 import           Data.List (intercalate)
+import           Data.Maybe (catMaybes)
 import qualified Data.Vector.Storable as DV
 import           Foreign
 import           Foreign.C.Types
@@ -117,7 +117,7 @@ data ADBStatus = ADBStatus {
   status_dim              :: Int,
   status_dudCount         :: Int,
   status_nullCount        :: Int,
-  status_flags            :: HeaderFlag,
+  status_flags            :: [HeaderFlag],
   status_length           :: Int,
   status_data_region_size :: Int } deriving (Eq, Show)
 type ADBStatusPtr = Ptr (ADBStatus)
@@ -136,7 +136,7 @@ data ADBKeyList = ADBKeyList {
 type ADBKeyListPtr = Ptr (ADBKeyList)
 
 data ADBQueryRefine = ADBQueryRefine {
-  query_refine_flags              :: RefinementFlag,
+  query_refine_flags              :: [RefinementFlag],
   query_refine_include            :: ADBKeyList,
   query_refine_exclude            :: ADBKeyList,
   query_refine_radius             :: Double,
@@ -148,8 +148,8 @@ data ADBQueryRefine = ADBQueryRefine {
 type ADBQueryRefinePtr = Ptr (ADBQueryRefine)
 
 data ADBQueryParameters = ADBQueryParameters {
-  query_parameters_accumulation  :: AccumulationFlag,
-  query_parameters_distance      :: DistanceFlag,
+  query_parameters_accumulation  :: [AccumulationFlag],
+  query_parameters_distance      :: [DistanceFlag],
   query_parameters_npoints       :: Int,
   query_parameters_ntracks       :: Int } deriving (Eq, Show)
 type ADBQueryParametersPtr = Ptr (ADBQueryParameters)
@@ -162,7 +162,7 @@ type ADBQueryResultsPtr = Ptr (ADBQueryResults)
 data ADBQueryID = ADBQueryID {
   queryid_datum           :: ADBDatumPtr,
   queryid_sequence_length :: Int,
-  queryid_flags           :: QueryIDFlag,
+  queryid_flags           :: [QueryIDFlag],
   queryid_sequence_start  :: Int } deriving (Eq, Show)
 type ADBQueryIDPtr = Ptr (ADBQueryID)
 
@@ -256,7 +256,7 @@ instance Storable ADBStatus where
     dudCount'         <- fmap fromIntegral (((#peek adb_status_t, dudCount) s) :: IO CUInt)
     nullCount'        <- fmap fromIntegral (((#peek adb_status_t, nullCount) s) :: IO CUInt)
     flags''           <- ((#peek adb_status_t, flags) s) :: IO CInt
-    let flags'        = HeaderFlag { unHeaderFlag = flags'' }
+    let flags'        = splitHeaderFlags HeaderFlag { unHeaderFlag = flags'' }
     length'           <- fmap fromIntegral (((#peek adb_status_t, length) s) :: IO CULong)
     data_region_size' <- fmap fromIntegral (((#peek adb_status_t, data_region_size) s) :: IO CULong)
     return ADBStatus { status_numFiles         = numFiles',
@@ -272,7 +272,7 @@ instance Storable ADBStatus where
     (#poke adb_status_t, dim) s dim'
     (#poke adb_status_t, dudCount) s dudCount'
     (#poke adb_status_t, nullCount) s nullCount'
-    (#poke adb_status_t, flags) s (unHeaderFlag flags')
+    (#poke adb_status_t, flags) s (unHeaderFlag $ combineHeaderFlags flags')
     (#poke adb_status_t, length) s length'
     (#poke adb_status_t, data_region_size) s data_region_size'
 
@@ -348,7 +348,7 @@ instance Storable ADBQueryRefine where
 
   peek qr = do
     flags''             <- ((#peek adb_query_refine_t, flags) qr) :: IO CUInt
-    let flags'          = RefinementFlag { unRefinementFlag = flags'' }
+    let flags'          = splitRefinementFlags RefinementFlag { unRefinementFlag = flags'' }
     include'            <- (#peek adb_query_refine_t, include) qr
     exclude'            <- (#peek adb_query_refine_t, exclude) qr
     radius'             <- fmap realToFrac (((#peek adb_query_refine_t, radius) qr) :: IO CDouble)
@@ -368,7 +368,7 @@ instance Storable ADBQueryRefine where
                             query_refine_ihopsize           = ihopsize' }
 
   poke qr (ADBQueryRefine flags' include' exclude' radius' absolute_threshold' relative_threshold' duration_ratio' qhopsize' ihopsize') = do
-    (#poke adb_query_refine_t, flags) qr (unRefinementFlag flags')
+    (#poke adb_query_refine_t, flags) qr (unRefinementFlag $ combineRefinementFlags flags')
     (#poke adb_query_refine_t, include) qr include'
     (#poke adb_query_refine_t, exclude) qr exclude'
     (#poke adb_query_refine_t, radius) qr radius'
@@ -384,10 +384,11 @@ instance Storable ADBQueryParameters where
 
   peek qp = do
     accFlags''     <- ((#peek adb_query_parameters_t, accumulation) qp) :: IO CUInt
-    let accFlags'  = AccumulationFlag { unAccumulationFlag = accFlags'' }
+    let accFlags'  = splitAccumulationFlags AccumulationFlag { unAccumulationFlag = accFlags'' }
 
     distFlags''    <- ((#peek adb_query_parameters_t, distance) qp) :: IO CUInt
     let distFlags' = DistanceFlag { unDistanceFlag = distFlags'' }
+    let distFlags'  = splitDistanceFlags DistanceFlag { unDistanceFlag = distFlags'' }
 
     npoints'       <- fmap fromIntegral (((#peek adb_query_parameters_t, npoints) qp) :: IO CUInt)
     ntracks'       <- fmap fromIntegral (((#peek adb_query_parameters_t, ntracks) qp) :: IO CUInt)
@@ -397,8 +398,8 @@ instance Storable ADBQueryParameters where
                                 query_parameters_ntracks      = ntracks' }
 
   poke qp (ADBQueryParameters accumulation' distance' npoints' ntracks') = do
-    (#poke adb_query_parameters_t, accumulation) qp (unAccumulationFlag accumulation')
-    (#poke adb_query_parameters_t, distance) qp (unDistanceFlag distance')
+    (#poke adb_query_parameters_t, accumulation) qp (unAccumulationFlag $ combineAccumulationFlags accumulation')
+    (#poke adb_query_parameters_t, distance) qp (unDistanceFlag $ combineDistanceFlags distance')
     (#poke adb_query_parameters_t, npoints) qp npoints'
     (#poke adb_query_parameters_t, ntracks) qp ntracks'
 
@@ -429,7 +430,7 @@ instance Storable ADBQueryID where
     datum'           <- (#peek adb_query_id_t, datum) qid
     sequence_length' <- fmap fromIntegral (((#peek adb_query_id_t, sequence_length) qid) :: IO CUInt)
     flags''          <- ((#peek adb_query_id_t, flags) qid) :: IO CUInt
-    let flags'       = QueryIDFlag { unQueryIDFlag = flags'' }
+    let flags'       = splitQueryIDFlags QueryIDFlag { unQueryIDFlag = flags'' }
     sequence_start'  <- fmap fromIntegral (((#peek adb_query_id_t, sequence_start) qid) :: IO CUInt)
     return ADBQueryID { queryid_datum           = datum',
                         queryid_sequence_length = sequence_length',
@@ -439,7 +440,7 @@ instance Storable ADBQueryID where
   poke qid (ADBQueryID datum' sequence_length' flags' sequence_start') = do
     (#poke adb_query_id_t, datum) qid datum'
     (#poke adb_query_id_t, sequence_length) qid sequence_length'
-    (#poke adb_query_id_t, flags) qid (unQueryIDFlag flags')
+    (#poke adb_query_id_t, flags) qid (unQueryIDFlag $ combineQueryIDFlags flags')
     (#poke adb_query_id_t, sequence_start) qid sequence_start'
 
 instance Storable ADBQuerySpec where
@@ -501,6 +502,12 @@ newtype QueryIDFlag = QueryIDFlag { unQueryIDFlag :: CUInt }
 combineQueryIDFlags :: [QueryIDFlag] -> QueryIDFlag
 combineQueryIDFlags = QueryIDFlag . foldr ((.|.) . unQueryIDFlag) 0
 
+splitQueryIDFlags :: QueryIDFlag -> [QueryIDFlag]
+splitQueryIDFlags flags = catMaybes $ map (\flag -> if (unQueryIDFlag flag) .&. (unQueryIDFlag flags) /= (0 :: CUInt)
+                                                    then Just flag
+                                                    else Nothing)
+                          [exhaustiveFlag, allowFalsePositivesFlag]
+
 -- These constants are defined in audioDB-internals.h which is a
 -- private header
 #define ADB_HEADER_FLAG_L2NORM		(0x1U)
@@ -520,6 +527,12 @@ newtype HeaderFlag = HeaderFlag { unHeaderFlag :: CInt } deriving (Eq, Show)
 combineHeaderFlags :: [HeaderFlag] -> HeaderFlag
 combineHeaderFlags = HeaderFlag . foldr ((.|.) . unHeaderFlag) 0
 
+splitHeaderFlags :: HeaderFlag -> [HeaderFlag]
+splitHeaderFlags flags = catMaybes $ map (\flag -> if (unHeaderFlag flag) .&. (unHeaderFlag flags) /= (0 :: CInt)
+                                                   then Just flag
+                                                   else Nothing)
+                         [l2normFlag, powerFlag, timesFlag, referencesFlag]
+
 newtype AccumulationFlag = AccumulationFlag { unAccumulationFlag :: CUInt } deriving (Eq, Show)
 
 #{enum AccumulationFlag, AccumulationFlag
@@ -530,6 +543,12 @@ newtype AccumulationFlag = AccumulationFlag { unAccumulationFlag :: CUInt } deri
 
 combineAccumulationFlags :: [AccumulationFlag] -> AccumulationFlag
 combineAccumulationFlags = AccumulationFlag . foldr ((.|.) . unAccumulationFlag) 0
+
+splitAccumulationFlags :: AccumulationFlag -> [AccumulationFlag]
+splitAccumulationFlags flags = catMaybes $ map (\flag -> if (unAccumulationFlag flag) .&. (unAccumulationFlag flags) /= (0 :: CUInt)
+                                                         then Just flag
+                                                         else Nothing)
+                               [databaseFlag, perTrackFlag, oneToOneFlag]
 
 newtype DistanceFlag = DistanceFlag { unDistanceFlag :: CUInt } deriving (Eq, Show)
 
@@ -542,6 +561,12 @@ newtype DistanceFlag = DistanceFlag { unDistanceFlag :: CUInt } deriving (Eq, Sh
 
 combineDistanceFlags :: [DistanceFlag] -> DistanceFlag
 combineDistanceFlags = DistanceFlag . foldr ((.|.) . unDistanceFlag) 0
+
+splitDistanceFlags :: DistanceFlag -> [DistanceFlag]
+splitDistanceFlags flags = catMaybes $ map (\flag -> if (unDistanceFlag flag) .&. (unDistanceFlag flags) /= (0 :: CUInt)
+                                                     then Just flag
+                                                     else Nothing)
+                           [dotProductFlag, euclideanNormedFlag, euclideanFlag, kullbackLeiblerDivergenceFlag]
 
 newtype RefinementFlag = RefinementFlag { unRefinementFlag :: CUInt } deriving (Eq, Show)
 
@@ -557,6 +582,12 @@ newtype RefinementFlag = RefinementFlag { unRefinementFlag :: CUInt } deriving (
 
 combineRefinementFlags :: [RefinementFlag] -> RefinementFlag
 combineRefinementFlags = RefinementFlag . foldr ((.|.) . unRefinementFlag) 0
+
+splitRefinementFlags :: RefinementFlag -> [RefinementFlag]
+splitRefinementFlags flags = catMaybes $ map (\flag -> if (unRefinementFlag flag) .&. (unRefinementFlag flags) /= (0 :: CUInt)
+                                                       then Just flag
+                                                       else Nothing)
+                             [includeKeyListFlag, excludeKeyListFlag, radiusFlag, absoluteThresholdFlag, relativeThresholdFlag, durationRatioFlag, hopSizeFlag]
 
 -- Importing the foreign functions
 

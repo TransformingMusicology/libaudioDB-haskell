@@ -68,24 +68,24 @@ type QueryComplete    = (Int -> QueryAllocator -> ADBQueryResultsPtr -> IO Bool)
 
 type RefinementParams = (Maybe ADBKeyList, Maybe ADBKeyList, Maybe Double, Maybe Double, Maybe Double, Maybe Double, Maybe Int, Maybe Int)
 
-combineJustRfnParams :: RefinementParams -> RefinementFlag
-combineJustRfnParams (incl, excl, rad, absThrsh, relThrsh, durRat, qHopSz, iHopSz) =
-  combineRefinementFlags $ catMaybes [(incl     ||| includeKeyListFlag),
-                                      (excl     ||| excludeKeyListFlag),
-                                      (rad      ||| radiusFlag),
-                                      (absThrsh ||| absoluteThresholdFlag),
-                                      (relThrsh ||| relativeThresholdFlag),
-                                      (durRat   ||| durationRatioFlag),
-                                      (qHopSz   ||| hopSizeFlag),
-                                      (iHopSz   ||| hopSizeFlag)]
+catJustRfnParams :: RefinementParams -> [RefinementFlag]
+catJustRfnParams (incl, excl, rad, absThrsh, relThrsh, durRat, qHopSz, iHopSz) =
+  catMaybes [(incl     ||| includeKeyListFlag),
+             (excl     ||| excludeKeyListFlag),
+             (rad      ||| radiusFlag),
+             (absThrsh ||| absoluteThresholdFlag),
+             (relThrsh ||| relativeThresholdFlag),
+             (durRat   ||| durationRatioFlag),
+             (qHopSz   ||| hopSizeFlag),
+             (iHopSz   ||| hopSizeFlag)]
 
 mkQuery :: ADBDatumPtr   -- query datum
            -> Maybe FeatureRate
            -> Maybe Seconds    -- sequence start
            -> Maybe Seconds    -- sequence length
-           -> Maybe QueryIDFlag
-           -> Maybe AccumulationFlag
-           -> Maybe DistanceFlag
+           -> Maybe [QueryIDFlag]
+           -> Maybe [AccumulationFlag]
+           -> Maybe [DistanceFlag]
            -> Maybe Int        -- number of point nearest neighbours
            -> Maybe Int        -- number of tracks
            -> Maybe ADBKeyList -- include
@@ -104,16 +104,16 @@ mkQuery datum secToFrames sqStart sqLen qidFlgs acc dist ptsNN resultLen incl ex
       qid = ADBQueryID {
         queryid_datum           = datum,
         queryid_sequence_length = fr (sqLen // 16),
-        queryid_flags           = (qidFlgs // allowFalsePositivesFlag),
+        queryid_flags           = (qidFlgs // [allowFalsePositivesFlag]),
         queryid_sequence_start  = fr (sqStart // 0) }
 
       params = ADBQueryParameters {
-        query_parameters_accumulation = (acc // databaseFlag),
-        query_parameters_distance     = (dist // dotProductFlag),
+        query_parameters_accumulation = (acc // [databaseFlag]),
+        query_parameters_distance     = (dist // [dotProductFlag]),
         query_parameters_npoints      = (ptsNN // 10),
         query_parameters_ntracks      = (resultLen // 10) }
 
-      rfnFlgs = combineJustRfnParams (incl, excl, rad, absThrsh, relThrsh, durRat, qHopSz, iHopSz)
+      rfnFlgs = catJustRfnParams (incl, excl, rad, absThrsh, relThrsh, durRat, qHopSz, iHopSz)
       refine = ADBQueryRefine {
         query_refine_flags              = rfnFlgs,
         query_refine_include            = (incl // emptyADBKeyList),
@@ -283,12 +283,12 @@ mkSequenceQuery :: ADBDatumPtr    -- query features
                    -> Int         -- number of tracks
                    -> Seconds     -- sequence start
                    -> Seconds     -- sequence length
-                   -> Maybe DistanceFlag
+                   -> Maybe [DistanceFlag]
                    -> Maybe Double -- absolute power threshold
                    -> ADBQuerySpecPtr
                    -> IO ()
-mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh qPtr =
-  mkQuery datum (Just secToFrames) (Just sqStart) (Just sqLen) Nothing (Just perTrackFlag) (dist ||| euclideanNormedFlag) (Just 1) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing Nothing Nothing qPtr
+mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh qPtr = trace ("Evaluating mkSequenceQuery with datum @ " ++ (show datum))
+  mkQuery datum (Just secToFrames) (Just sqStart) (Just sqLen) Nothing (Just [perTrackFlag]) (dist ||| [euclideanNormedFlag]) (Just 1) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing Nothing Nothing qPtr
 
 execSequenceQuery :: (Ptr ADB)
                      -> ADBDatumPtr -- query features
@@ -296,7 +296,7 @@ execSequenceQuery :: (Ptr ADB)
                      -> Int         -- number of tracks
                      -> Seconds     -- sequence start
                      -> Seconds     -- sequence length
-                     -> Maybe DistanceFlag
+                     -> Maybe [DistanceFlag]
                      -> Maybe Double -- absolute power threshold
                      -> IO ADBQueryResults
 execSequenceQuery adb datum secToFrames resultLen sqStart sqLen dist absThrsh =
@@ -308,7 +308,7 @@ transformSequenceQuery :: (ADBDatumPtr -> IO ADBDatumPtr)     -- query features
                           -> (Int -> Int)                     -- number of tracks
                           -> (Seconds -> Seconds)             -- sequence start
                           -> (Seconds -> Seconds)             -- sequence length
-                          -> (Maybe DistanceFlag -> Maybe DistanceFlag)
+                          -> (Maybe [DistanceFlag] -> Maybe [DistanceFlag])
                           -> (Maybe Double -> Maybe Double)   -- absolute power threshold)
                           -> ADBQueryResultsPtr
                           -> QueryAllocator
@@ -330,14 +330,14 @@ mkNSequenceQuery :: ADBDatumPtr  -- query features
                     -> Int         -- number of point nearest neighbours
                     -> Int         -- number of tracks
                     -> Seconds     -- sequence length
-                    -> Maybe DistanceFlag
+                    -> Maybe [DistanceFlag]
                     -> Maybe Double -- absolute power threshold
                     -> Int         -- query hop size
                     -> Int         -- instance hop size
                     -> ADBQuerySpecPtr
                     -> IO ()
 mkNSequenceQuery datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize qPtr =
-  mkQuery datum (Just secToFrames) (Just 0) (Just sqLen) (Just exhaustiveFlag) (Just perTrackFlag) (dist ||| euclideanNormedFlag) (Just ptsNN) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing (Just qHopSize) (Just iHopSize) qPtr
+  mkQuery datum (Just secToFrames) (Just 0) (Just sqLen) (Just [exhaustiveFlag]) (Just [perTrackFlag]) (dist ||| [euclideanNormedFlag]) (Just ptsNN) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing (Just qHopSize) (Just iHopSize) qPtr
 
 execNSequenceQuery :: (Ptr ADB)
                       -> ADBDatumPtr -- query features
@@ -345,7 +345,7 @@ execNSequenceQuery :: (Ptr ADB)
                       -> Int         -- number of point nearest neighbours
                       -> Int         -- number of tracks
                       -> Seconds     -- sequence length
-                      -> Maybe DistanceFlag
+                      -> Maybe [DistanceFlag]
                       -> Maybe Double -- absolute power threshold
                       -> Int         -- query hop size
                       -> Int         -- instance hop size
@@ -411,7 +411,7 @@ mkSequenceQueryWithRotation :: ADBDatumPtr  -- query features
                                -> Int          -- number of tracks
                                -> Seconds      -- sequence start
                                -> Seconds      -- sequence length
-                               -> Maybe DistanceFlag
+                               -> Maybe [DistanceFlag]
                                -> Maybe Double -- absolute power threshold
                                -> [Int]        -- rotations
                                -> (QueryAllocator, QueryTransformer, QueryComplete)
@@ -428,7 +428,7 @@ execSequenceQueryWithRotation :: (Ptr ADB)
                                -> Int          -- number of tracks
                                -> Seconds      -- sequence start
                                -> Seconds      -- sequence length
-                               -> Maybe DistanceFlag
+                               -> Maybe [DistanceFlag]
                                -> Maybe Double -- absolute power threshold
                                -> [Int]        -- rotations
                                -> IO ADBQueryResults
