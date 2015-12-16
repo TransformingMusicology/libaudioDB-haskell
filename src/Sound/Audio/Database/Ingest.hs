@@ -19,26 +19,47 @@
 -- along with libaudioDB-haskell. If not, see <http://www.gnu.org/licenses/>.
 
 module Sound.Audio.Database.Ingest ( insertFeatures
-                                   , insertMaybeFeatures) where
+                                   , insertFeaturesPtr
+                                   , insertMaybeFeatures
+                                   , insertMaybeFeaturesPtr ) where
 
 import AudioDB.API
+import Control.Exception (throwIO)
 import Data.Maybe (isJust)
-import Foreign (Ptr, peek)
+import Foreign (Ptr, peek, poke)
 import Foreign.C.Types
+import Foreign.Marshal.Alloc (alloca)
 import Sound.Audio.Database
 
-insertFeatures :: (Ptr ADB) -> ADBDatumPtr -> IO Bool
-insertFeatures adb datumPtr =
-  withADBStatus (\status -> do
-                    datum       <- peek datumPtr
-                    res         <- if isPowered status == isJust (datum_power datum)
-                                   then audiodb_insert_datum adb datumPtr
-                                   else return (1 :: CInt)
-                    return (res == (0 :: CInt)))
-  adb
+insertFeaturesPtr :: (Ptr ADB) -> ADBDatumPtr -> IO Bool
+insertFeaturesPtr adb datumPtr =
+  withADBStatus doInsert adb
+  where
+    doInsert status = do
+      datum <- peek datumPtr
+      res   <- if isPowered status == isJust (datum_power datum)
+               then audiodb_insert_datum adb datumPtr
+               else throwIO FeaturesDBPowerFlagNotSetException
+      let success = res == (0 :: CInt)
+      return success
 
-insertMaybeFeatures :: (Ptr ADB) -> (Maybe ADBDatumPtr) -> IO Bool
-insertMaybeFeatures adb datumPtr = do
-  maybe (return False)
-    (\p -> do { insertFeatures adb p })
-    datumPtr
+insertFeatures :: (Ptr ADB) -> ADBDatum -> IO Bool
+insertFeatures adb datum =
+  withADBStatus doInsert adb
+  where
+    doInsert status = do
+      res <- if isPowered status == isJust (datum_power datum)
+             then alloca (\datumPtr -> do
+                             poke datumPtr datum
+                             audiodb_insert_datum adb datumPtr)
+             else throwIO FeaturesDBPowerFlagNotSetException
+      let success = res == (0 :: CInt)
+      return success
+
+insertMaybeFeaturesPtr :: (Ptr ADB) -> Maybe ADBDatumPtr -> IO Bool
+insertMaybeFeaturesPtr adb (Just datumPtr) = insertFeaturesPtr adb datumPtr
+insertMaybeFeaturesPtr abd Nothing         = return False
+
+insertMaybeFeatures :: (Ptr ADB) -> Maybe ADBDatum -> IO Bool
+insertMaybeFeatures adb (Just datum) = insertFeatures adb datum
+insertMaybeFeatures adb Nothing      = return False

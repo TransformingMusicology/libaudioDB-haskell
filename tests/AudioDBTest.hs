@@ -57,6 +57,25 @@ showResult r =
     dist = showFFloat nd ((result_dist r))
     nd   = Just 2
 
+test_create_insert_synthetic :: FilePath -> IO ()
+test_create_insert_synthetic adbFN =
+  withNewL2NormedPoweredAudioDB adbFN 0 0 1 testDB
+  where
+    featureKey = "Test"
+    features   = V.fromList [1.0]
+    power      = Just (V.fromList [0.0])
+    times      = Nothing
+    datum      = ADBDatum { datum_nvectors = 1,
+                            datum_dim      = 1,
+                            datum_key      = featureKey,
+                            datum_data     = features,
+                            datum_power    = power,
+                            datum_times    = times }
+    testDB Nothing    = putStrLn $ "Could not create database: " ++ adbFN
+    testDB (Just adb) = do
+      inserted <- insertFeatures adb datum
+      putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
+
 test_create_insert :: FilePath -> FilePath -> String -> Int -> IO ()
 test_create_insert adbFN featureFN featureKey dbDim =
   withNewAudioDB adbFN 0 0 dbDim False False testDB
@@ -64,7 +83,7 @@ test_create_insert adbFN featureFN featureKey dbDim =
     testDB Nothing    = putStrLn $ "Could not create database: " ++ adbFN
     testDB (Just adb) = do
       datumPtr <- readCSVFeaturesTimes featureKey featureFN
-      inserted <- insertMaybeFeatures adb datumPtr
+      inserted <- insertMaybeFeaturesPtr adb datumPtr
       putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
 
 test_sequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
@@ -200,6 +219,7 @@ main :: IO ()
 main = do
   -- test_readCSVFeatures test_features_name test_features_file
 
+  -- test_create_insert_synthetic new_db_file
   -- test_create_insert new_db_file test_features_file test_features_name test_features_dim
   -- test_sequence_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
   -- test_nsequence_query db_file test_features_file test_power_features_file query_seq_length query_hop_size

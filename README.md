@@ -113,13 +113,13 @@ and insert your features. The follow expressions in an `IO` function
 are *almost* what we need:
 
     datumPtr <- readCSVFeaturesTimes "Track01" "Track01.chroma.csv"
-    inserted <- insertMaybeFeatures adb datumPtr
+    inserted <- insertMaybeFeaturesPtr adb datumPtr
 
 The function `readCSVFeaturesTimes :: String -> FilePath -> IO (Maybe
 ADBDatumPtr)` takes a "key" for the feature file in the database
 (i.e. a unique string to identify this feature file), and a filename,
 and returns a `Maybe ADBDatumPtr` (in the `IO` monad). And then
-`insertMaybeFeatures :: (Ptr ADB) -> (Maybe ADBDatumPtr) -> IO Bool`
+`insertMaybeFeaturesPtr :: (Ptr ADB) -> (Maybe ADBDatumPtr) -> IO Bool`
 takes a pointer to an `ADB`, a `Maybe ADBDatumPtr` (that's the thing
 that `readCSVFeaturesTimes` gave us) and returns a `Bool` (in the `IO`
 monad) indicating success or failure. The `ADBDatum` type is a record
@@ -161,7 +161,7 @@ So to create a new database and insert some features, we can do:
             testDB Nothing    = putStrLn $ "Could not create database: " ++ adbFN
             testDB (Just adb) = do
               datumPtr <- readCSVFeaturesTimes featureKey featureFN
-              inserted <- insertMaybeFeatures adb datumPtr
+              inserted <- insertMaybeFeaturesPtr adb datumPtr
               putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
 
 (as can be seen in `tests/AudioDBTests.hs`).

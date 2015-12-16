@@ -22,6 +22,7 @@
 
 module Sound.Audio.Database ( QueryException(..)
                             , DatabaseException(..)
+                            , FeaturesException(..)
                             , withExistingROAudioDB
                             , withADBStatus
                             , withMaybeDatumPtr
@@ -94,6 +95,11 @@ data QueryException = QuerySequenceBoundsException Int Int Int
                     | QueryDimensionsMismatchException Int Int
                     deriving (Show, Typeable)
 instance Exception QueryException
+
+data FeaturesException = FeaturesMissingPowersException
+                       | FeaturesDBPowerFlagNotSetException
+                       deriving (Show, Typeable)
+instance Exception FeaturesException
 
 data DatabaseException = DBStatusException
                        deriving (Show, Typeable)
