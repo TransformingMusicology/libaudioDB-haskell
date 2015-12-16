@@ -30,9 +30,8 @@ import Sound.Audio.Database
 insertFeatures :: (Ptr ADB) -> ADBDatumPtr -> IO Bool
 insertFeatures adb datumPtr =
   withADBStatus (\status -> do
-                    let powered = (status_flags status) == powerFlag
                     datum       <- peek datumPtr
-                    res         <- if powered == isJust (datum_power datum)
+                    res         <- if isPowered status == isJust (datum_power datum)
                                    then audiodb_insert_datum adb datumPtr
                                    else return (1 :: CInt)
                     return (res == (0 :: CInt)))

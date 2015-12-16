@@ -59,7 +59,7 @@ showResult r =
 
 test_create_insert :: FilePath -> FilePath -> String -> Int -> IO ()
 test_create_insert adbFN featureFN featureKey dbDim =
-  withNewAudioDB adbFN 0 0 dbDim testDB
+  withNewAudioDB adbFN 0 0 dbDim False False testDB
   where
     testDB Nothing    = putStrLn $ "Could not create database: " ++ adbFN
     testDB (Just adb) = do

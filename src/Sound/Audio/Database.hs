@@ -27,6 +27,13 @@ module Sound.Audio.Database ( QueryException(..)
                             , withMaybeDatumPtr
                             , withNewAudioDB
                             , featuresFromKey
+                            , withNewL2NormedAudioDB
+                            , withNewPoweredAudioDB
+                            , withNewL2NormedPoweredAudioDB
+                            , isL2Normed
+                            , isPowered
+                            , isTimes
+                            , isReferences
                             , checkDimensions
                             , emptyADBKeyList
                               -- Things re-exported from AudioDB.API
@@ -118,13 +125,50 @@ withNewAudioDB :: FilePath -- file name
                -> Int      -- datasize
                -> Int      -- number of tracks
                -> Int      -- dimensions of features
+               -> Bool     -- L2 normed
+               -> Bool     -- with powers
                -> (Maybe (Ptr ADB) -> IO a)
                -> IO a
-withNewAudioDB fp datasize ntracks dim f = do
+withNewAudioDB fp datasize ntracks dim l2norm power f = do
   adbFN  <- newCString fp
-  bracket (audiodb_create adbFN (fromIntegral datasize) (fromIntegral ntracks) (fromIntegral dim))
+  bracket (audiodb_create adbFN (fromIntegral datasize) (fromIntegral ntracks) (fromIntegral dim) >>= setupDB l2norm power)
     (\adb -> if adb /= nullPtr then audiodb_close adb else return ())
     (\adb -> f $ if adb /= nullPtr then Just adb else Nothing)
+  where setupDB True True adb
+          | adb == nullPtr = return nullPtr
+          | otherwise = do
+              l <- setADBL2Normed adb
+              p <- setADBPowered adb
+              return $ if l && p then adb else nullPtr
+        setupDB True False adb
+          | adb == nullPtr = return nullPtr
+          | otherwise = do
+              l <- setADBL2Normed adb
+              return $ if l then adb else nullPtr
+        setupDB False True adb
+          | adb == nullPtr = return nullPtr
+          | otherwise = do
+              p <- setADBPowered adb
+              return $ if p then adb else nullPtr
+        setupDB False False adb = return adb
+
+withNewL2NormedAudioDB        :: FilePath -> Int -> Int -> Int -> (Maybe (Ptr ADB) -> IO a) -> IO a
+withNewPoweredAudioDB         :: FilePath -> Int -> Int -> Int -> (Maybe (Ptr ADB) -> IO a) -> IO a
+withNewL2NormedPoweredAudioDB :: FilePath -> Int -> Int -> Int -> (Maybe (Ptr ADB) -> IO a) -> IO a
+
+withNewL2NormedAudioDB        fp datasize ntracks dim f = withNewAudioDB fp datasize ntracks dim True False f
+withNewPoweredAudioDB         fp datasize ntracks dim f = withNewAudioDB fp datasize ntracks dim False True f
+withNewL2NormedPoweredAudioDB fp datasize ntracks dim f = withNewAudioDB fp datasize ntracks dim True True f
+
+setADBL2Normed :: (Ptr ADB) -> IO Bool
+setADBL2Normed adb = do
+  res <- audiodb_l2norm adb
+  return $ res == 0
+
+setADBPowered :: (Ptr ADB) -> IO Bool
+setADBPowered adb = do
+  res <- audiodb_power adb
+  return $ res == 0
 
 withADBStatus :: (ADBStatus -> IO a) -> (Ptr ADB) -> IO a
 withADBStatus f adb = do
@@ -133,6 +177,21 @@ withADBStatus f adb = do
     when (res /= 0) (throw DBStatusException)
     status  <- peek statusPtr
     (f status)
+
+isHeaderFlag :: HeaderFlag -> ADBStatus -> Bool
+isHeaderFlag flag s = elem flag (status_flags s)
+
+isL2Normed :: ADBStatus -> Bool
+isL2Normed = isHeaderFlag l2normFlag
+
+isPowered :: ADBStatus -> Bool
+isPowered = isHeaderFlag powerFlag
+
+isTimes :: ADBStatus -> Bool
+isTimes = isHeaderFlag timesFlag
+
+isReferences :: ADBStatus -> Bool
+isReferences = isHeaderFlag referencesFlag
 
 withMaybeDatumPtr :: (Ptr ADB) -> String -> (Maybe ADBDatumPtr -> a) -> IO a
 withMaybeDatumPtr adb key f = alloca $ \datumPtr -> do

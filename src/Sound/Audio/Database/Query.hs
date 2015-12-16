@@ -287,7 +287,7 @@ mkSequenceQuery :: ADBDatumPtr    -- query features
                    -> Maybe Double -- absolute power threshold
                    -> ADBQuerySpecPtr
                    -> IO ()
-mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh qPtr = trace ("Evaluating mkSequenceQuery with datum @ " ++ (show datum))
+mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh qPtr =
   mkQuery datum (Just secToFrames) (Just sqStart) (Just sqLen) Nothing (Just [perTrackFlag]) (dist ||| [euclideanNormedFlag]) (Just 1) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing Nothing Nothing qPtr
 
 execSequenceQuery :: (Ptr ADB)

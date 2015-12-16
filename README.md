@@ -152,7 +152,7 @@ So to create a new database and insert some features, we can do:
     
     main :: IO ()
     main = do
-      withNewAudioDB adbFN 0 0 dbDim testDB
+      withNewL2NormedAudioDB adbFN 0 0 dbDim testDB
         where
             adbFN      = "test.chroma.adb"
             dbDim      = 12
