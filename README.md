@@ -220,7 +220,7 @@ TODO
 
 ## License
 
-Copyright (C) 2014, 2015 Richard Lewis, Goldsmiths' College
+Copyright (C) 2014-2016 Richard Lewis, Goldsmiths' College
 
 Author: richard.lewis@gold.ac.uk
 
