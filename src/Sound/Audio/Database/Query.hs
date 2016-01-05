@@ -133,7 +133,7 @@ mkQuery datum secToFrames sqStart sqLen qidFlgs acc dist ptsNN resultLen incl ex
         query_spec_refine = refine }
 
 
-  let q = if (queryid_sequence_start qid) + (queryid_sequence_length qid) < (datum_nvectors datum)
+  let q = if (queryid_sequence_start qid) + (queryid_sequence_length qid) <= (datum_nvectors datum)
           then poke qPtr querySpec
           else throw $ QuerySequenceBoundsException (queryid_sequence_start qid) (queryid_sequence_length qid) (datum_nvectors datum)
   q
