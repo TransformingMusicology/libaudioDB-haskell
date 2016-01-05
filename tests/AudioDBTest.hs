@@ -94,7 +94,7 @@ test_sequence_query adbFile queryFile qPowersFile start len =
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
       res <- execSequenceQuery adb datum (floor . (* framesPerSecond)) 25 start len (Just [euclideanNormedFlag]) Nothing
-      putStrLn (showResults res)
+      putStrLn (showResults (reverseResults res))
 
 test_nsequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Int -> IO ()
 test_nsequence_query adbFile queryFile qPowersFile len hopSize = withExistingROAudioDB adbFile runTestOnDB
@@ -105,7 +105,7 @@ test_nsequence_query adbFile queryFile qPowersFile len hopSize = withExistingROA
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
       res <- execNSequenceQuery adb datum (floor . (* framesPerSecond)) 10 25 len (Just [euclideanNormedFlag]) Nothing hopSize hopSize
-      putStrLn (showResults res)
+      putStrLn (showResults (reverseResults res))
 
 test_callback_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
 test_callback_query adbFile queryFile qPowersFile start len = withExistingROAudioDB adbFile runTestOnDB
@@ -122,7 +122,7 @@ test_callback_query adbFile queryFile qPowersFile start len = withExistingROAudi
             res <- peek r
             n <- return $ query_results_nresults res
             putStrLn $ "Callback #" ++ (show i) ++ " says: " ++ (show n)
-            putStrLn (showResults res)
+            putStrLn (showResults (reverseResults res))
             return n
 
       _ <- queryWithCallback adb qAlloc callback isFinished
@@ -143,7 +143,7 @@ test_transform_query adbFile queryFile qPowersFile start len = withExistingROAud
 
       res <- queryWithTransform adb qAlloc transform isFinished
       putStrLn "Final results:"
-      putStrLn $ showResults res
+      putStrLn $ showResults (reverseResults res)
 
 test_callbacktransform_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
 test_callbacktransform_query adbFile queryFile qPowersFile start len = withExistingROAudioDB adbFile runTestOnDB
@@ -161,7 +161,7 @@ test_callbacktransform_query adbFile queryFile qPowersFile start len = withExist
 
       res <- queryWithCallbacksAndTransform adb qAlloc transform callback isFinished
       putStrLn "Final results:"
-      putStrLn $ showResults res
+      putStrLn $ showResults (reverseResults res)
 
 test_rotation_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> [Int] -> IO ()
 test_rotation_query adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB
@@ -172,7 +172,7 @@ test_rotation_query adbFile queryFile qPowersFile start len rotations = withExis
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
       res <- execSequenceQueryWithRotation adb datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
-      putStrLn (showResults res)
+      putStrLn (showResults (reverseResults res))
 
 test_polymorphic_query_with_rotations :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> [Int] -> IO ()
 test_polymorphic_query_with_rotations adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB

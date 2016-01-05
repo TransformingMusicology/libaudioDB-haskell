@@ -27,6 +27,8 @@ module Sound.Audio.Database.Query ( QueryAllocator
                                   , withQuery
                                   , applyQuery
                                   , withResults
+                                  , reverseResults
+                                  , reverseResultsPtr
                                   , applyResults
                                   , queryWithCallback
                                   , queryWithTransform
@@ -226,6 +228,14 @@ withResults rPtr f = do
 
 applyResults :: (ADBQueryResults -> IO a) -> ADBQueryResultsPtr -> IO a
 applyResults f rPtr = withResults rPtr f
+
+reverseResults :: ADBQueryResults -> ADBQueryResults
+reverseResults r = r { query_results_results = reverse $ query_results_results r }
+
+reverseResultsPtr :: ADBQueryResultsPtr -> IO ()
+reverseResultsPtr rPtr = do
+  r <- peek rPtr
+  poke rPtr $ reverseResults r
 
 queryStart :: (Ptr ADB) -> ADBQuerySpecPtr -> IO ADBQueryResultsPtr
 queryStart adb qPtr = audiodb_query_spec adb qPtr
