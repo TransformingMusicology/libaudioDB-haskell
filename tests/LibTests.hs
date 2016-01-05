@@ -55,7 +55,90 @@ test0003 = TestCase $ do
 
   withNewL2NormedAudioDB "0003.adb" 0 0 dbDim testDB
 
+test0004 :: Test
+test0004 = TestCase $ do
+  let
+    dbDim = 2
+    datum =
+      ADBDatum { datum_nvectors = 2
+               , datum_dim      = dbDim
+               , datum_key      = "Test"
+               , datum_data     = V.fromList [0.0, 1.0, 1.0, 0.0]
+               , datum_power    = Nothing
+               , datum_times    = Nothing }
+    query05 =
+      ADBDatum { datum_nvectors = 1
+               , datum_dim      = dbDim
+               , datum_key      = "Query05"
+               , datum_data     = V.fromList [0.0, 0.5]
+               , datum_power    = Nothing
+               , datum_times    = Nothing }
+    query50 =
+      ADBDatum { datum_nvectors = 1
+               , datum_dim      = dbDim
+               , datum_key      = "Query50"
+               , datum_data     = V.fromList [0.5, 0.0]
+               , datum_power    = Nothing
+               , datum_times    = Nothing }
+    expResQ05np10 =
+      ADBQueryResults { query_results_nresults = 2
+                      , query_results_results  = [ ADBResult { result_qkey = "Query05"
+                                                             , result_ikey = "Test"
+                                                             , result_qpos = 0
+                                                             , result_ipos = 0
+                                                             , result_dist = 0.5 }
+                                                 , ADBResult { result_qkey = "Query05"
+                                                             , result_ikey = "Test"
+                                                             , result_qpos = 0
+                                                             , result_ipos = 1
+                                                             , result_dist = 0.0 } ] }
+    expResQ05np1 =
+      ADBQueryResults { query_results_nresults = 1
+                      , query_results_results  = [ ADBResult { result_qkey = "Query05"
+                                                             , result_ikey = "Test"
+                                                             , result_qpos = 0
+                                                             , result_ipos = 0
+                                                             , result_dist = 0.5 } ] }
+    expResQ50np10 =
+      ADBQueryResults { query_results_nresults = 2
+                      , query_results_results  = [ ADBResult { result_qkey = "Query50"
+                                                             , result_ikey = "Test"
+                                                             , result_qpos = 0
+                                                             , result_ipos = 1
+                                                             , result_dist = 0.5 }
+                                                 , ADBResult { result_qkey = "Query50"
+                                                             , result_ikey = "Test"
+                                                             , result_qpos = 0
+                                                             , result_ipos = 0
+                                                             , result_dist = 0.0 } ] }
+    expResQ50np1 =
+      ADBQueryResults { query_results_nresults = 1
+                      , query_results_results  = [ ADBResult { result_qkey = "Query50"
+                                                             , result_ikey = "Test"
+                                                             , result_qpos = 0
+                                                             , result_ipos = 1
+                                                             , result_dist = 0.5 } ] }
+
+    testDB Nothing    = assertFailure "Database 0004.adb was not created."
+    testDB (Just adb) = do
+      ins     <- insertFeatures adb datum
+      assertBool "1D insertion" ins
+
+      actResQ05np10 <- querySinglePass adb $ mkPointQuery query05 inFrames inSeconds 10
+      assertEqual "point query: query [0.0, 0.5], np 10" expResQ05np10 (reverseResults actResQ05np10)
+
+      actResQ05np1  <- querySinglePass adb $ mkPointQuery query05 inFrames inSeconds 1
+      assertEqual "point query: query [0.0, 0.5], np 1" expResQ05np1 (reverseResults actResQ05np1)
+
+      actResQ50np10 <- querySinglePass adb $ mkPointQuery query50 inFrames inSeconds 10
+      assertEqual "point query: query [0.5, 0.0], np 10" expResQ50np10 (reverseResults actResQ50np10)
+
+      actResQ50np1  <- querySinglePass adb $ mkPointQuery query50 inFrames inSeconds 1
+      assertEqual "point query: query [0.5, 0.0], np 1" expResQ50np1 (reverseResults actResQ50np1)
+
+  withNewL2NormedAudioDB "0004.adb" 0 0 dbDim testDB
+
 main :: IO ()
 main = do
-  _ <- runTestTT $ TestList [test0003]
+  _ <- runTestTT $ TestList [test0003, test0004]
   return ()
