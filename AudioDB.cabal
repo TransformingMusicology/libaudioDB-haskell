@@ -29,3 +29,10 @@ executable audiodb-test
   hs-source-dirs: tests
   ghc-options: -Wall
   extra-libraries: audioDB
+
+executable tests
+  build-depends: base, vector, parsec, MissingH, filepath, AudioDB, HUnit
+  main-is: LibTests.hs
+  hs-source-dirs: tests
+  ghc-options: -Wall
+  extra-libraries: audioDB
