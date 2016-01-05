@@ -127,8 +127,28 @@ data ADBResult = ADBResult {
   result_ikey   :: String,
   result_qpos   :: Int,
   result_ipos   :: Int,
-  result_dist   :: Double } deriving (Eq)
+  result_dist   :: Double }
 type ADBResultPtr = Ptr (ADBResult)
+
+instance Eq ADBResult where
+  (==) (ADBResult { result_qkey = aQKey
+                  , result_ikey = aIKey
+                  , result_qpos = aQPos
+                  , result_ipos = aIPos
+                  , result_dist = aDist })
+    (ADBResult { result_qkey = bQKey
+               , result_ikey = bIKey
+               , result_qpos = bQPos
+               , result_ipos = bIPos
+               , result_dist = bDist })
+    | aQKey /= bQKey = False
+    | aIKey /= bIKey = False
+    | aQPos /= bQPos = False
+    | aIPos /= bIPos = False
+    | aDist `inRange` (bDist, threshold) = True
+    | otherwise = False
+    where threshold = 1e-4
+          inRange x (y, t) = x >= y - t && x <= y + t
 
 data ADBKeyList = ADBKeyList {
   keylist_nkeys  :: Int,
