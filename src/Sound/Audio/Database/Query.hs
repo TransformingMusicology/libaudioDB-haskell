@@ -299,9 +299,14 @@ query adb alloc transform callback isFinished =
   queryPtr adb alloc transform callback isFinished >>= peek
 
 mkPointQuery :: ADBDatum   -- query features
+                -> FeatureRate
+                -> FrameSize
+                -> Int         -- number of point nearest neighbours
                 -> ADBQuerySpecPtr
                 -> IO ()
-mkPointQuery = undefined
+mkPointQuery datum secToFrames framesToSec ptsNN =
+  mkQuery datum (Just secToFrames) (Just 0) (Just datumLen) (Just []) (Just [databaseFlag]) (Just [dotProductFlag]) (Just ptsNN) (Just 1) Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+  where datumLen = framesToSec (datum_nvectors datum)
 
 mkTrackQuery :: ADBDatum    -- query features
                 -> Int         -- number of tracks
