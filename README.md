@@ -112,15 +112,15 @@ Once you have some feature files, you're ready to create a database
 and insert your features. The follow expressions in an `IO` function
 are *almost* what we need:
 
-    datumPtr <- readCSVFeaturesTimes "Track01" "Track01.chroma.csv"
-    inserted <- insertMaybeFeaturesPtr adb datumPtr
+    datum    <- readCSVFeaturesTimes "Track01" "Track01.chroma.csv"
+    inserted <- insertMaybeFeatures adb datum
 
 The function `readCSVFeaturesTimes :: String -> FilePath -> IO (Maybe
-ADBDatumPtr)` takes a "key" for the feature file in the database
+ADBDatum)` takes a "key" for the feature file in the database
 (i.e. a unique string to identify this feature file), and a filename,
-and returns a `Maybe ADBDatumPtr` (in the `IO` monad). And then
-`insertMaybeFeaturesPtr :: (Ptr ADB) -> (Maybe ADBDatumPtr) -> IO Bool`
-takes a pointer to an `ADB`, a `Maybe ADBDatumPtr` (that's the thing
+and returns a `Maybe ADBDatum` (in the `IO` monad). And then
+`insertMaybeFeatures :: (Ptr ADB) -> (Maybe ADBDatum) -> IO Bool`
+takes a pointer to an `ADB`, a `Maybe ADBDatum` (that's the thing
 that `readCSVFeaturesTimes` gave us) and returns a `Bool` (in the `IO`
 monad) indicating success or failure. The `ADBDatum` type is a record
 type which collects together a `Storable` `Vector` of `Double`s
@@ -160,20 +160,20 @@ So to create a new database and insert some features, we can do:
             featureFN  = "Track01.chroma.csv"
             testDB Nothing    = putStrLn $ "Could not create database: " ++ adbFN
             testDB (Just adb) = do
-              datumPtr <- readCSVFeaturesTimes featureKey featureFN
-              inserted <- insertMaybeFeaturesPtr adb datumPtr
+              datum    <- readCSVFeaturesTimes featureKey featureFN
+              inserted <- insertMaybeFeaturesPtr adb datum
               putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
 
 (as can be seen in `tests/AudioDBTests.hs`).
 
 ## Running the "tests"
 
-The `AudioDB.cabal` file includes two executable targets: `api-test`
-and `audiodb-test`. The `api-test` is a simple couple of functions
-which demonstrate (rather than rigorously *test*) some of the
-functions from the (non-exported) `AudioDB.API` module. (Note that
-these are *not* the tests that I warned you not to run on MacOS; this
-code [probably] won't eat all your disk space.)
+The `AudioDB.cabal` file includes three executable targets:
+`api-test`, `audiodb-test`, and `tests`. The `api-test` is a simple
+couple of functions which demonstrate (rather than rigorously *test*)
+some of the functions from the (non-exported) `AudioDB.API`
+module. (Note that these are *not* the tests that I warned you not to
+run on MacOS; this code [probably] won't eat all your disk space.)
 
 Similarly, `audiodb-test` comprises basic
 proof-of-not-completely-brokenness of some of the functions from the
@@ -213,6 +213,12 @@ These are sufficient for executing the `test_readCSVFeatures` and
     query_hop_size = undefined
 
 And these are required to execute any of the `test_*_query` functions.
+
+The `tests` target runs the code in `tests/LibTests.hs` which
+implement the same tests defined in
+[`libaudioDB`](https://github.com/TransformingMusicology/libaudiodb). These
+are the tests that create lots of large database files and so should
+not be run on MacOS with HFS+.
 
 ## Doing some queries
 
