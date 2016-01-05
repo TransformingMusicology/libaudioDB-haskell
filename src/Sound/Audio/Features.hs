@@ -25,7 +25,6 @@ module Sound.Audio.Features ( DatumProperties
 
 import           AudioDB.API
 import qualified Data.Vector.Storable as DV
-import           Foreign.Marshal.Utils (new)
 import           Sound.Audio.Database.Types
 
 type DatumProperties     = (Int, Int, DV.Vector Double, Maybe (DV.Vector Double))
@@ -37,25 +36,25 @@ readFeaturesFile :: String                         -- key
                     -> FeaturesParser              -- features parser
                     -> Maybe (FilePath,
                               PowerFeaturesParser) -- power features file, parser
-                    -> IO (Maybe ADBDatumPtr)
+                    -> IO (Maybe ADBDatum)
 readFeaturesFile key featuresFile featuresParser (Just (powersFile, powersParser)) = do
   (n, dim, features, times) <- featuresParser featuresFile
   pFeatures                 <- powersParser powersFile
   let power = pFeatures
-  datum <- new ADBDatum { datum_nvectors = n
-                        , datum_dim      = dim
-                        , datum_key      = key
-                        , datum_data     = features
-                        , datum_power    = power
-                        , datum_times    = times }
+      datum = ADBDatum { datum_nvectors = n
+                       , datum_dim      = dim
+                       , datum_key      = key
+                       , datum_data     = features
+                       , datum_power    = power
+                       , datum_times    = times }
   return (Just datum)
 
 readFeaturesFile key featuresFile featuresParser Nothing = do
   (n, dim, features, times) <- featuresParser featuresFile
-  datum <- new ADBDatum { datum_nvectors = n
-                        , datum_dim      = dim
-                        , datum_key      = key
-                        , datum_data     = features
-                        , datum_power    = Nothing
-                        , datum_times    = times }
+  let datum = ADBDatum { datum_nvectors = n
+                       , datum_dim      = dim
+                       , datum_key      = key
+                       , datum_data     = features
+                       , datum_power    = Nothing
+                       , datum_times    = times }
   return (Just datum)

@@ -25,9 +25,13 @@ module Sound.Audio.Database ( QueryException(..)
                             , FeaturesException(..)
                             , withExistingROAudioDB
                             , withADBStatus
+                            , withDatumAsPtr
+                            , withDatumAsPtrIO
+                            , withMaybeDatum
+                            , withMaybeDatumIO
                             , withMaybeDatumPtr
+                            , withMaybeDatumPtrIO
                             , withNewAudioDB
-                            , featuresFromKey
                             , withNewL2NormedAudioDB
                             , withNewPoweredAudioDB
                             , withNewL2NormedPoweredAudioDB
@@ -85,9 +89,9 @@ import AudioDB.API
 import Control.Exception (throw, Exception, bracket)
 import Control.Monad (when)
 import Data.Typeable (Typeable)
-import Foreign (Ptr, peek, nullPtr)
+import Foreign (Ptr, peek, poke, nullPtr)
 import Foreign.C.String (newCString)
-import Foreign.Marshal.Alloc (alloca)
+import Foreign.Marshal.Alloc (alloca, malloc, free)
 import Sound.Audio.Database.Types
 --import System.C.IO
 
@@ -199,6 +203,24 @@ isTimes = isHeaderFlag timesFlag
 isReferences :: ADBStatus -> Bool
 isReferences = isHeaderFlag referencesFlag
 
+-- FIXME For documentation: emphasise that clients should not return
+-- the ADBDatumPtr and attempt to use it
+withDatumAsPtr :: ADBDatum -> (ADBDatumPtr -> a) -> IO a
+withDatumAsPtr datum f = alloca pokeAndDo
+  where
+    pokeAndDo datumPtr = do
+      poke datumPtr datum
+      return $ f datumPtr
+
+withDatumAsPtrIO :: ADBDatum -> (ADBDatumPtr -> IO a) -> IO a
+withDatumAsPtrIO datum f = alloca pokeAndDo
+  where
+    pokeAndDo datumPtr = do
+      poke datumPtr datum
+      f datumPtr
+
+-- FIXME For documentation: emphasise that clients should not return
+-- the ADBDatumPtr and attempt to use it
 withMaybeDatumPtr :: (Ptr ADB) -> String -> (Maybe ADBDatumPtr -> a) -> IO a
 withMaybeDatumPtr adb key f = alloca $ \datumPtr -> do
   key'  <- newCString key
@@ -207,8 +229,29 @@ withMaybeDatumPtr adb key f = alloca $ \datumPtr -> do
     then do return $ f Nothing
     else do return $ f (Just datumPtr)
 
-featuresFromKey :: (Ptr ADB) -> String -> IO (Maybe ADBDatumPtr)
-featuresFromKey adb key = withMaybeDatumPtr adb key id
+withMaybeDatumPtrIO :: (Ptr ADB) -> String -> (Maybe ADBDatumPtr -> IO a) -> IO a
+withMaybeDatumPtrIO adb key f = alloca $ \datumPtr -> do
+  key'  <- newCString key
+  res   <- audiodb_retrieve_datum adb key' datumPtr
+  if res /= 0
+    then f Nothing
+    else f (Just datumPtr)
+
+withMaybeDatum :: (Ptr ADB) -> String -> (Maybe ADBDatum -> a) -> IO a
+withMaybeDatum adb key f = alloca $ \datumPtr -> do
+  key'  <- newCString key
+  res   <- audiodb_retrieve_datum adb key' datumPtr
+  if res /= 0
+    then do return $ f Nothing
+    else do { d <- peek datumPtr; return $ f (Just d) }
+
+withMaybeDatumIO :: (Ptr ADB) -> String -> (Maybe ADBDatum -> IO a) -> IO a
+withMaybeDatumIO adb key f = alloca $ \datumPtr -> do
+  key'  <- newCString key
+  res   <- audiodb_retrieve_datum adb key' datumPtr
+  if res /= 0
+    then f Nothing
+    else do { d <- peek datumPtr; f (Just d) }
 
 checkDimensions :: (Ptr ADB) -> ADBDatum -> IO Bool
 checkDimensions adb datum =

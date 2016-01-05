@@ -13,17 +13,15 @@ import           Sound.Audio.Features.ReadCSV
 
 test_readCSVFeatures :: String -> FilePath -> IO ()
 test_readCSVFeatures key fp = do
-  datumPtr <- readCSVFeaturesTimes key fp
+  datum <- readCSVFeaturesTimes key fp
   maybe (putStrLn "Could not parse.")
-    (\p -> do
-        d <- peek p
+    (\d -> do
         putStrLn $ show "Key: " ++ (show (datum_key d)) ++
           "; nVectors: " ++ (show (datum_nvectors d)) ++
           "; dim: " ++ (show (datum_dim d)) ++
           "; 100 features: " ++ (show (V.take 100 (datum_data d))) ++
           "; 100 times: " ++ (show (maybe (V.fromList [0]) (\t -> (V.take 100 t)) (datum_times d)))
-        free p
-    ) datumPtr
+    ) datum
 
 sample_rate :: Int
 sample_rate = 44100
@@ -82,8 +80,8 @@ test_create_insert adbFN featureFN featureKey dbDim =
   where
     testDB Nothing    = putStrLn $ "Could not create database: " ++ adbFN
     testDB (Just adb) = do
-      datumPtr <- readCSVFeaturesTimes featureKey featureFN
-      inserted <- insertMaybeFeaturesPtr adb datumPtr
+      datum    <- readCSVFeaturesTimes featureKey featureFN
+      inserted <- insertMaybeFeatures adb datum
       putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
 
 test_sequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
@@ -94,8 +92,8 @@ test_sequence_query adbFile queryFile qPowersFile start len =
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
-    testQuery adb (Just datumPtr) = do
-      res <- execSequenceQuery adb datumPtr (floor . (* framesPerSecond)) 25 start len (Just [euclideanNormedFlag]) Nothing
+    testQuery adb (Just datum) = do
+      res <- execSequenceQuery adb datum (floor . (* framesPerSecond)) 25 start len (Just [euclideanNormedFlag]) Nothing
       putStrLn (showResults res)
 
 test_nsequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Int -> IO ()
@@ -105,8 +103,8 @@ test_nsequence_query adbFile queryFile qPowersFile len hopSize = withExistingROA
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
-    testQuery adb (Just datumPtr) = do
-      res <- execNSequenceQuery adb datumPtr (floor . (* framesPerSecond)) 10 25 len (Just [euclideanNormedFlag]) Nothing hopSize hopSize
+    testQuery adb (Just datum) = do
+      res <- execNSequenceQuery adb datum (floor . (* framesPerSecond)) 10 25 len (Just [euclideanNormedFlag]) Nothing hopSize hopSize
       putStrLn (showResults res)
 
 test_callback_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
@@ -116,9 +114,9 @@ test_callback_query adbFile queryFile qPowersFile start len = withExistingROAudi
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
-    testQuery adb (Just datumPtr) = do
+    testQuery adb (Just datum) = do
       let ntracks          = query_parameters_ntracks . query_spec_params
-          qAlloc           = mkSequenceQuery datumPtr (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
+          qAlloc           = mkSequenceQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
           isFinished _ _ _ = putStrLn "isFinished..." >> return False -- withQueryPtr adb a (\qPtr -> do { q <- peek qPtr; return $ ntracks q >= 25 })
           callback i r     = do
             res <- peek r
@@ -137,9 +135,9 @@ test_transform_query adbFile queryFile qPowersFile start len = withExistingROAud
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
-    testQuery adb (Just datumPtr) = do
+    testQuery adb (Just datum) = do
       let ntracks          = query_parameters_ntracks . query_spec_params
-          qAlloc           = mkSequenceQuery datumPtr (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
+          qAlloc           = mkSequenceQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
           isFinished _ _ r = withResults r (\res -> return $ (query_results_nresults res) >= 20)
           transform _ r a  = mkSequenceQueryDeltaNTracks (floor . (* framesPerSecond)) framesToSeconds (\x -> x + 5) r a
 
@@ -154,9 +152,9 @@ test_callbacktransform_query adbFile queryFile qPowersFile start len = withExist
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
-    testQuery adb (Just datumPtr) = do
+    testQuery adb (Just datum) = do
       let ntracks          = query_parameters_ntracks . query_spec_params
-          qAlloc           = mkSequenceQuery datumPtr (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
+          qAlloc           = mkSequenceQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
           isFinished _ a _ = withQuery adb a (\q -> do { return $ (ntracks q) >= 20 }) --withResults r (\res -> return $ (query_results_nresults res) >= 20)
           callback i r     = withResults r (\res -> do { putStrLn $ "#" ++ (show i) ++ ": " ++ (showResults res); return $ (query_results_nresults res) })
           transform _ r a  = mkSequenceQueryDeltaNTracks (floor . (* framesPerSecond)) framesToSeconds (\x -> x + 5) r a
@@ -172,8 +170,8 @@ test_rotation_query adbFile queryFile qPowersFile start len rotations = withExis
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
-    testQuery adb (Just datumPtr) = do
-      res <- execSequenceQueryWithRotation adb datumPtr (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
+    testQuery adb (Just datum) = do
+      res <- execSequenceQueryWithRotation adb datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
       putStrLn (showResults res)
 
 test_polymorphic_query_with_rotations :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> [Int] -> IO ()
@@ -183,8 +181,8 @@ test_polymorphic_query_with_rotations adbFile queryFile qPowersFile start len ro
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
-    testQuery adb (Just datumPtr) = do
-      let (qAlloc, qTransform, qComplete) = mkSequenceQueryWithRotation datumPtr (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
+    testQuery adb (Just datum) = do
+      let (qAlloc, qTransform, qComplete) = mkSequenceQueryWithRotation datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
       res <- query adb qAlloc (Just qTransform) Nothing (Just qComplete)
       putStrLn $ showResults res
 

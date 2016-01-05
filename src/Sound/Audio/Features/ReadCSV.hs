@@ -30,10 +30,10 @@ import           Sound.Audio.Features
 import           Text.Parsec.Error (ParseError)
 import           Text.Parsec.String (parseFromFile)
 
-readCSVFeaturesTimesPowers :: String -> FilePath -> FilePath -> IO (Maybe ADBDatumPtr)
-readCSVFeaturesPowers      :: String -> FilePath -> FilePath -> IO (Maybe ADBDatumPtr)
-readCSVFeaturesTimes       :: String -> FilePath -> IO (Maybe ADBDatumPtr)
-readCSVFeaturesOnly        :: String -> FilePath -> IO (Maybe ADBDatumPtr)
+readCSVFeaturesTimesPowers :: String -> FilePath -> FilePath -> IO (Maybe ADBDatum)
+readCSVFeaturesPowers      :: String -> FilePath -> FilePath -> IO (Maybe ADBDatum)
+readCSVFeaturesTimes       :: String -> FilePath -> IO (Maybe ADBDatum)
+readCSVFeaturesOnly        :: String -> FilePath -> IO (Maybe ADBDatum)
 
 readCSVFeaturesTimesPowers key featuresFile powersFile = readFeaturesFile key featuresFile parseCSVFeaturesWithTimesFile    (Just (powersFile, parseCSVPowerFeaturesFile))
 readCSVFeaturesPowers key featuresFile powersFile      = readFeaturesFile key featuresFile parseCSVFeaturesWithoutTimesFile (Just (powersFile, parseCSVPowerFeaturesFile))

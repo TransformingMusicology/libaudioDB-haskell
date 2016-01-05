@@ -49,7 +49,7 @@ import           Control.Exception (throw)
 import qualified Data.Vector.Storable as DV
 import           Data.Maybe (catMaybes)
 import           Foreign (Ptr, peek, poke)
-import           Foreign.Marshal.Alloc (alloca)
+import           Foreign.Marshal.Alloc (alloca, malloc, free)
 import           Sound.Audio.Database
 import           Sound.Audio.Database.Types
 
@@ -79,7 +79,7 @@ catJustRfnParams (incl, excl, rad, absThrsh, relThrsh, durRat, qHopSz, iHopSz) =
              (qHopSz   ||| hopSizeFlag),
              (iHopSz   ||| hopSizeFlag)]
 
-mkQuery :: ADBDatumPtr   -- query datum
+mkQuery :: ADBDatum   -- query datum
            -> Maybe FeatureRate
            -> Maybe Seconds    -- sequence start
            -> Maybe Seconds    -- sequence length
@@ -100,9 +100,12 @@ mkQuery :: ADBDatumPtr   -- query datum
            -> IO ()
 
 mkQuery datum secToFrames sqStart sqLen qidFlgs acc dist ptsNN resultLen incl excl rad absThrsh relThrsh durRat qHopSz iHopSz qPtr = do
+  datumPtr <- malloc
+  poke datumPtr datum
+
   let fr = (secToFrames // inFrames)
       qid = ADBQueryID {
-        queryid_datum           = datum,
+        queryid_datum           = datumPtr,
         queryid_sequence_length = fr (sqLen // 16),
         queryid_flags           = (qidFlgs // [allowFalsePositivesFlag]),
         queryid_sequence_start  = fr (sqStart // 0) }
@@ -129,11 +132,10 @@ mkQuery datum secToFrames sqStart sqLen qidFlgs acc dist ptsNN resultLen incl ex
         query_spec_params = params,
         query_spec_refine = refine }
 
-  d <- peek datum
 
-  let q = if (queryid_sequence_start qid) + (queryid_sequence_length qid) < (datum_nvectors d)
+  let q = if (queryid_sequence_start qid) + (queryid_sequence_length qid) < (datum_nvectors datum)
           then poke qPtr querySpec
-          else throw $ QuerySequenceBoundsException (queryid_sequence_start qid) (queryid_sequence_length qid) (datum_nvectors d)
+          else throw $ QuerySequenceBoundsException (queryid_sequence_start qid) (queryid_sequence_length qid) (datum_nvectors datum)
   q
 
 withQueryPtr :: (Ptr ADB) -> QueryAllocator -> (ADBQuerySpecPtr -> IO a) -> IO a
@@ -180,13 +182,42 @@ withDetachedQuery allocQuery f =
 applyDetachedQuery :: (ADBQuerySpec -> IO a) -> QueryAllocator -> IO a
 applyDetachedQuery f allocQuery = withDetachedQuery allocQuery f
 
+freeDatum :: ADBDatumPtr -> IO ()
+freeDatum datumPtr = free datumPtr
+
+freeQSpecDatum :: ADBQuerySpecPtr -> IO ()
+freeQSpecDatum qSpecPtr = do
+  qSpec    <- peek qSpecPtr
+  let datumPtr = (queryid_datum . query_spec_qid) qSpec
+  free datumPtr
+
+freeDatumFromAllocator :: QueryAllocator -> IO ()
+freeDatumFromAllocator qAlloc = trace "freeDatumFromAllocator" withDetachedQueryPtr qAlloc freeQSpecDatum
+
+peekDatum :: ADBDatumPtr -> IO ADBDatum
+peekDatum datumPtr = do
+  d <- peek datumPtr
+  return d
+
+saveDatum :: ADBDatumPtr -> IO ADBDatum
+saveDatum datumPtr = do
+  d <- peek datumPtr
+  freeDatum datumPtr
+  return d
+
 querySinglePass :: (Ptr ADB) -> QueryAllocator -> IO ADBQueryResults
 querySinglePass adb allocQuery =
-  withQueryPtr adb allocQuery (\qPtr -> do { r <- audiodb_query_spec adb qPtr; peek r >>= return })
+  withQueryPtr adb allocQuery $ \qPtr -> do
+    r <- audiodb_query_spec adb qPtr
+    freeQSpecDatum qPtr
+    peek r >>= return
 
 querySinglePassPtr :: (Ptr ADB) -> QueryAllocator -> IO ADBQueryResultsPtr
 querySinglePassPtr adb allocQuery =
-  withQueryPtr adb allocQuery (\qPtr -> audiodb_query_spec adb qPtr)
+  withQueryPtr adb allocQuery $ \qPtr -> do
+    r <- audiodb_query_spec adb qPtr
+    freeQSpecDatum qPtr
+    return r
 
 withResults :: ADBQueryResultsPtr -> (ADBQueryResults -> IO a) -> IO a
 withResults rPtr f = do
@@ -219,7 +250,7 @@ queryWithCallbackPtr adb alloc callback isFinished =
                              let iteration = 0
                                  initQ _   = queryStart adb qPtr
                                  stepQ i r = callback i r >> queryStep adb qPtr r >>= iterQ (i + 1)
-                                 iterQ i r = isFinished i alloc r >>= thenElseIfM (return r) (stepQ i r)
+                                 iterQ i r = isFinished i alloc r >>= thenElseIfM (do { freeQSpecDatum qPtr; return r }) (stepQ i r)
                              r0 <- initQ iteration
                              iterQ (iteration + 1) r0)
 
@@ -232,7 +263,7 @@ queryWithTransformPtr adb alloc transform complete = do
   let iteration   = 0
       initQ _     = withQueryPtr adb alloc (\qPtr -> queryStart adb qPtr)
       stepQ i a r = withQueryPtr adb a (\qPtr -> queryStep adb qPtr r) >>= iterQ (i + 1) a
-      iterQ i a r = complete i a r >>= thenElseIfM (return r) (stepQ i (transform i r a) r)
+      iterQ i a r = complete i a r >>= thenElseIfM (do { freeDatumFromAllocator a; return r }) (stepQ i (transform i r a) r)
   r0 <- initQ iteration
   iterQ (iteration + 1) alloc r0
 
@@ -245,7 +276,7 @@ queryWithCallbacksAndTransformPtr adb alloc transform callback complete = do
   let iteration   = 0
       initQ _     = withQueryPtr adb alloc (\qPtr -> queryStart adb qPtr)
       stepQ i a r = callback i r >> withQueryPtr adb a (\qPtr -> queryStep adb qPtr r) >>= iterQ (i + 1) a
-      iterQ i a r = complete i a r >>= thenElseIfM (return r) (stepQ i (transform i r a) r)
+      iterQ i a r = complete i a r >>= thenElseIfM (do { freeDatumFromAllocator a; return r }) (stepQ i (transform i r a) r)
   r0 <- initQ iteration
   iterQ (iteration + 1) alloc r0
 
@@ -267,18 +298,18 @@ query :: (Ptr ADB) -> QueryAllocator -> Maybe QueryTransformer -> Maybe (QueryCa
 query adb alloc transform callback isFinished =
   queryPtr adb alloc transform callback isFinished >>= peek
 
-mkPointQuery :: ADBDatumPtr   -- query features
+mkPointQuery :: ADBDatum   -- query features
                 -> ADBQuerySpecPtr
                 -> IO ()
 mkPointQuery = undefined
 
-mkTrackQuery :: ADBDatumPtr    -- query features
+mkTrackQuery :: ADBDatum    -- query features
                 -> Int         -- number of tracks
                 -> ADBQuerySpecPtr
                 -> IO ()
 mkTrackQuery = undefined
 
-mkSequenceQuery :: ADBDatumPtr    -- query features
+mkSequenceQuery :: ADBDatum    -- query features
                    -> FeatureRate
                    -> Int         -- number of tracks
                    -> Seconds     -- sequence start
@@ -291,7 +322,7 @@ mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh qPtr =
   mkQuery datum (Just secToFrames) (Just sqStart) (Just sqLen) Nothing (Just [perTrackFlag]) (dist ||| [euclideanNormedFlag]) (Just 1) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing Nothing Nothing qPtr
 
 execSequenceQuery :: (Ptr ADB)
-                     -> ADBDatumPtr -- query features
+                     -> ADBDatum -- query features
                      -> FeatureRate
                      -> Int         -- number of tracks
                      -> Seconds     -- sequence start
@@ -302,7 +333,7 @@ execSequenceQuery :: (Ptr ADB)
 execSequenceQuery adb datum secToFrames resultLen sqStart sqLen dist absThrsh =
   querySinglePass adb (mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh)
 
-transformSequenceQuery :: (ADBDatumPtr -> IO ADBDatumPtr)     -- query features
+transformSequenceQuery :: (ADBDatumPtr -> IO ADBDatum)     -- query features
                           -> FeatureRate
                           -> FrameSize
                           -> (Int -> Int)                     -- number of tracks
@@ -316,8 +347,10 @@ transformSequenceQuery :: (ADBDatumPtr -> IO ADBDatumPtr)     -- query features
                           -> IO ()
 transformSequenceQuery tDatum secToFrames framesToSec tResultLen tSqStart tSqLen tDist tAbsThrsh resPtr fromAlloc toPtr =
   withDetachedQueryPtr fromAlloc $ \fromPtr -> do
-    q     <- peek fromPtr
-    datum <- tDatum $ (queryid_datum . query_spec_qid) q
+    q        <- peek fromPtr
+    let datumPtr = (queryid_datum . query_spec_qid) q
+    datum <- tDatum datumPtr
+    free datumPtr
     let resultLen = tResultLen $ (query_parameters_ntracks . query_spec_params) q
         sqStart   = (withSeconds secToFrames framesToSec tSqStart ((queryid_sequence_start . query_spec_qid) q))
         sqLen     = (withSeconds secToFrames framesToSec tSqLen ((queryid_sequence_length . query_spec_qid) q))
@@ -325,7 +358,7 @@ transformSequenceQuery tDatum secToFrames framesToSec tResultLen tSqStart tSqLen
         absThrsh  = tAbsThrsh  $ Just $ (query_refine_absolute_threshold . query_spec_refine) q
     mkSequenceQuery datum secToFrames resultLen (framesToSec sqStart) (framesToSec sqLen) dist absThrsh toPtr
 
-mkNSequenceQuery :: ADBDatumPtr  -- query features
+mkNSequenceQuery :: ADBDatum  -- query features
                     -> FeatureRate
                     -> Int         -- number of point nearest neighbours
                     -> Int         -- number of tracks
@@ -340,7 +373,7 @@ mkNSequenceQuery datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize 
   mkQuery datum (Just secToFrames) (Just 0) (Just sqLen) (Just [exhaustiveFlag]) (Just [perTrackFlag]) (dist ||| [euclideanNormedFlag]) (Just ptsNN) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing (Just qHopSize) (Just iHopSize) qPtr
 
 execNSequenceQuery :: (Ptr ADB)
-                      -> ADBDatumPtr -- query features
+                      -> ADBDatum -- query features
                       -> FeatureRate
                       -> Int         -- number of point nearest neighbours
                       -> Int         -- number of tracks
@@ -353,7 +386,7 @@ execNSequenceQuery :: (Ptr ADB)
 execNSequenceQuery adb datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize =
   querySinglePass adb (mkNSequenceQuery datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize)
 
-mkOneToOneSequenceQuery :: ADBDatumPtr  -- query features
+mkOneToOneSequenceQuery :: ADBDatum  -- query features
                            -> ADBQuerySpecPtr
                            -> IO ()
 mkOneToOneSequenceQuery = undefined
@@ -365,7 +398,7 @@ mkSequenceQueryDeltaNTracks :: FeatureRate
                                -> QueryAllocator
                                -> ADBQuerySpecPtr
                                -> IO ()
-mkSequenceQueryDeltaNTracks secToFrames frameToSecs delta = transformSequenceQuery return secToFrames frameToSecs delta id id id id
+mkSequenceQueryDeltaNTracks secToFrames frameToSecs delta = transformSequenceQuery peekDatum secToFrames frameToSecs delta id id id id
 
 mkSequenceQueryMutateDatum :: FeatureRate
                               -> FrameSize
@@ -374,16 +407,20 @@ mkSequenceQueryMutateDatum :: FeatureRate
                               -> QueryAllocator
                               -> ADBQuerySpecPtr
                               -> IO ()
-mkSequenceQueryMutateDatum secToFrames frameToSecs mutate res alloc qPtr = withDetachedQueryPtr alloc $ \fromPtr -> do
+mkSequenceQueryMutateDatum secToFrames frameToSecs mutate resPtr fromAlloc toPtr =
+  withDetachedQueryPtr fromAlloc $ \fromPtr -> do
     q <- peek fromPtr
-    let datum     = (queryid_datum . query_spec_qid) q
+    let datumPtr  = (queryid_datum . query_spec_qid) q
         resultLen = (query_parameters_ntracks . query_spec_params) q
         sqStart   = (queryid_sequence_start . query_spec_qid) q
         sqLen     = (queryid_sequence_length . query_spec_qid) q
         dist      = Just $ (query_parameters_distance . query_spec_params) q
         absThrsh  = Just $ (query_refine_absolute_threshold . query_spec_refine) q
-    mutate datum
-    mkSequenceQuery datum secToFrames resultLen (frameToSecs sqStart) (frameToSecs sqLen) dist absThrsh qPtr
+    mutate datumPtr
+    datum <- peek datumPtr
+    freeQSpecDatum fromPtr
+
+    mkSequenceQuery datum secToFrames resultLen (frameToSecs sqStart) (frameToSecs sqLen) dist absThrsh toPtr
 
 rotateVector :: (DV.Storable a) => Int -> DV.Vector a -> DV.Vector a
 rotateVector delta v = (DV.++) back front
@@ -405,7 +442,7 @@ rotateDatum delta datumPtr = do
 
   poke datumPtr rotDatum
 
-mkSequenceQueryWithRotation :: ADBDatumPtr  -- query features
+mkSequenceQueryWithRotation :: ADBDatum  -- query features
                                -> FeatureRate
                                -> FrameSize
                                -> Int          -- number of tracks
@@ -422,7 +459,7 @@ mkSequenceQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLe
     isFinished i _ r = return $ i > (length rotations)
 
 execSequenceQueryWithRotation :: (Ptr ADB)
-                               -> ADBDatumPtr  -- query features
+                               -> ADBDatum  -- query features
                                -> FeatureRate
                                -> FrameSize
                                -> Int          -- number of tracks
