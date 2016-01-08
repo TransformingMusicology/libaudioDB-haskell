@@ -42,7 +42,6 @@ module Sound.Audio.Database.Query ( QueryAllocator
                                   , mkNSequenceQuery
                                   , execNSequenceQuery
                                   , mkSequenceQueryDeltaNTracks
-                                  , mkSequenceQueryMutateDatum
                                   , mkSequenceQueryWithRotation
                                   , execSequenceQueryWithRotation ) where
 
@@ -415,27 +414,6 @@ mkSequenceQueryDeltaNTracks :: FeatureRate
                                -> IO ()
 mkSequenceQueryDeltaNTracks secToFrames frameToSecs delta = transformSequenceQuery peekDatum secToFrames frameToSecs delta id id id id
 
-mkSequenceQueryMutateDatum :: FeatureRate
-                              -> FrameSize
-                              -> (ADBDatumPtr -> IO ())
-                              -> ADBQueryResultsPtr
-                              -> QueryAllocator
-                              -> ADBQuerySpecPtr
-                              -> IO ()
-mkSequenceQueryMutateDatum secToFrames frameToSecs mutate resPtr fromAlloc toPtr =
-  withDetachedQueryPtr fromAlloc $ \fromPtr -> do
-    q <- peek fromPtr
-    let datumPtr  = (queryid_datum . query_spec_qid) q
-        resultLen = (query_parameters_ntracks . query_spec_params) q
-        sqStart   = (queryid_sequence_start . query_spec_qid) q
-        sqLen     = (queryid_sequence_length . query_spec_qid) q
-        dist      = Just $ (query_parameters_distance . query_spec_params) q
-        absThrsh  = Just $ (query_refine_absolute_threshold . query_spec_refine) q
-    mutate datumPtr
-    datum <- peek datumPtr
-    freeQSpecDatum fromPtr
-
-    mkSequenceQuery datum secToFrames resultLen (frameToSecs sqStart) (frameToSecs sqLen) dist absThrsh toPtr
 
 rotateVector :: (DV.Storable a) => Int -> DV.Vector a -> DV.Vector a
 rotateVector delta v = (DV.++) back front
@@ -447,8 +425,8 @@ mapSlices f sliceLen values = mapSlice 0
           | start + sliceLen <= (DV.length values) = (f (DV.slice start sliceLen values)) : mapSlice (start + sliceLen)
           | otherwise                              = []
 
-rotateDatum :: Int -> ADBDatumPtr -> IO ()
-rotateDatum delta datumPtr = do
+rotateDatumPtr :: Int -> ADBDatumPtr -> IO ()
+rotateDatumPtr delta datumPtr = do
   datum  <- peek datumPtr
 
   let values    = datum_data datum
@@ -456,6 +434,12 @@ rotateDatum delta datumPtr = do
       rotDatum  = datum { datum_data = rotValues }
 
   poke datumPtr rotDatum
+
+rotateDatum :: Int -> ADBDatum -> ADBDatum
+rotateDatum delta datum = datum { datum_data = rotValues }
+  where
+    values    = datum_data datum
+    rotValues = DV.concat $ mapSlices (rotateVector delta) (datum_dim datum) values
 
 mkSequenceQueryWithRotation :: ADBDatum  -- query features
                                -> FeatureRate
@@ -470,7 +454,7 @@ mkSequenceQueryWithRotation :: ADBDatum  -- query features
 mkSequenceQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations = (alloc, transform, isFinished)
   where
     alloc            = mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh
-    transform i r a  = mkSequenceQueryMutateDatum secToFrames frameToSecs (rotateDatum (rotations!!(i - 1))) r a
+    transform i r a  = mkSequenceQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames resultLen sqStart sqLen dist absThrsh
     isFinished i _ r = return $ i > (length rotations)
 
 execSequenceQueryWithRotation :: (Ptr ADB)
