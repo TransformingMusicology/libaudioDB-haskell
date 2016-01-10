@@ -89,7 +89,7 @@ test_sequence_query adbFile queryFile qPowersFile start len =
   withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
-    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
@@ -100,7 +100,7 @@ test_nsequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Int -> IO
 test_nsequence_query adbFile queryFile qPowersFile len hopSize = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
-    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
@@ -111,7 +111,7 @@ test_callback_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds ->
 test_callback_query adbFile queryFile qPowersFile start len = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
-    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
@@ -132,7 +132,7 @@ test_transform_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -
 test_transform_query adbFile queryFile qPowersFile start len = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
-    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
@@ -149,7 +149,7 @@ test_callbacktransform_query :: FilePath -> FilePath -> FilePath -> Seconds -> S
 test_callbacktransform_query adbFile queryFile qPowersFile start len = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
-    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
@@ -167,7 +167,7 @@ test_rotation_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds ->
 test_rotation_query adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
-    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
@@ -178,7 +178,7 @@ test_polymorphic_query_with_rotations :: FilePath -> FilePath -> FilePath -> Sec
 test_polymorphic_query_with_rotations adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
-    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers "chester_16" queryFile qPowersFile >>= testQuery adb
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
