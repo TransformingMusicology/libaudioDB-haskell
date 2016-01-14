@@ -58,6 +58,10 @@ import           Sound.Audio.Database.Types
 Just _  ||| b = Just b
 Nothing ||| _ = Nothing
 
+(||-||) :: (Maybe a, Maybe a) -> b -> Maybe b
+(Nothing, Nothing) ||-|| _ = Nothing
+_                  ||-|| b = Just b
+
 (//) :: Maybe a -> a -> a
 Just x  // _ = x
 Nothing // y = y
@@ -77,8 +81,7 @@ catJustRfnParams (incl, excl, rad, absThrsh, relThrsh, durRat, qHopSz, iHopSz) =
              (absThrsh ||| absoluteThresholdFlag),
              (relThrsh ||| relativeThresholdFlag),
              (durRat   ||| durationRatioFlag),
-             (qHopSz   ||| hopSizeFlag),
-             (iHopSz   ||| hopSizeFlag)]
+             ((qHopSz, iHopSz) ||-|| hopSizeFlag)]
 
 mkQuery :: ADBDatum   -- query datum
            -> Maybe FeatureRate
