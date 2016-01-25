@@ -50,7 +50,9 @@ import           Control.Exception (throw)
 import qualified Data.Vector.Storable as DV
 import           Data.Maybe (catMaybes)
 import           Foreign (Ptr, peek, poke)
-import           Foreign.Marshal.Alloc (alloca, malloc, free)
+import           Foreign.ForeignPtr
+import           Foreign.ForeignPtr.Unsafe
+import           Foreign.Marshal.Alloc (alloca)
 import           Sound.Audio.Database
 import           Sound.Audio.Database.Types
 
@@ -104,12 +106,12 @@ mkQuery :: ADBDatum   -- query datum
            -> IO ()
 
 mkQuery datum secToFrames sqStart sqLen qidFlgs acc dist ptsNN resultLen incl excl rad absThrsh relThrsh durRat qHopSz iHopSz qPtr = do
-  datumPtr <- malloc
-  poke datumPtr datum
+  datumPtr <- mallocForeignPtr
+  withForeignPtr datumPtr (\ptr -> poke ptr datum)
 
   let fr = (secToFrames // inFrames)
       qid = ADBQueryID {
-        queryid_datum           = datumPtr,
+        queryid_datum           = unsafeForeignPtrToPtr datumPtr,
         queryid_sequence_length = fr (sqLen // 16),
         queryid_flags           = (qidFlgs // [allowFalsePositivesFlag]),
         queryid_sequence_start  = fr (sqStart // 0) }
@@ -186,41 +188,21 @@ withDetachedQuery allocQuery f =
 applyDetachedQuery :: (ADBQuerySpec -> IO a) -> QueryAllocator -> IO a
 applyDetachedQuery f allocQuery = withDetachedQuery allocQuery f
 
-freeDatum :: ADBDatumPtr -> IO ()
-freeDatum datumPtr = free datumPtr
-
-freeQSpecDatum :: ADBQuerySpecPtr -> IO ()
-freeQSpecDatum qSpecPtr = do
-  qSpec    <- peek qSpecPtr
-  let datumPtr = (queryid_datum . query_spec_qid) qSpec
-  free datumPtr
-
-freeDatumFromAllocator :: QueryAllocator -> IO ()
-freeDatumFromAllocator qAlloc = trace "freeDatumFromAllocator" withDetachedQueryPtr qAlloc freeQSpecDatum
-
 peekDatum :: ADBDatumPtr -> IO ADBDatum
 peekDatum datumPtr = do
   d <- peek datumPtr
-  return d
-
-saveDatum :: ADBDatumPtr -> IO ADBDatum
-saveDatum datumPtr = do
-  d <- peek datumPtr
-  freeDatum datumPtr
   return d
 
 querySinglePass :: (Ptr ADB) -> QueryAllocator -> IO ADBQueryResults
 querySinglePass adb allocQuery =
   withQueryPtr adb allocQuery $ \qPtr -> do
     r <- audiodb_query_spec adb qPtr
-    freeQSpecDatum qPtr
     peek r >>= return
 
 querySinglePassPtr :: (Ptr ADB) -> QueryAllocator -> IO ADBQueryResultsPtr
 querySinglePassPtr adb allocQuery =
   withQueryPtr adb allocQuery $ \qPtr -> do
     r <- audiodb_query_spec adb qPtr
-    freeQSpecDatum qPtr
     return r
 
 withResults :: ADBQueryResultsPtr -> (ADBQueryResults -> IO a) -> IO a
@@ -262,7 +244,7 @@ queryWithCallbackPtr adb alloc callback isFinished =
                              let iteration = 0
                                  initQ _   = queryStart adb qPtr
                                  stepQ i r = callback i r >> queryStep adb qPtr r >>= iterQ (i + 1)
-                                 iterQ i r = isFinished i alloc r >>= thenElseIfM (do { freeQSpecDatum qPtr; return r }) (stepQ i r)
+                                 iterQ i r = isFinished i alloc r >>= thenElseIfM (return r) (stepQ i r)
                              r0 <- initQ iteration
                              iterQ (iteration + 1) r0)
 
@@ -275,7 +257,7 @@ queryWithTransformPtr adb alloc transform complete = do
   let iteration   = 0
       initQ _     = withQueryPtr adb alloc (\qPtr -> queryStart adb qPtr)
       stepQ i a r = withQueryPtr adb a (\qPtr -> queryStep adb qPtr r) >>= iterQ (i + 1) a
-      iterQ i a r = complete i a r >>= thenElseIfM (do { freeDatumFromAllocator a; return r }) (stepQ i (transform i r a) r)
+      iterQ i a r = complete i a r >>= thenElseIfM (return r) (stepQ i (transform i r a) r)
   r0 <- initQ iteration
   iterQ (iteration + 1) alloc r0
 
@@ -288,7 +270,7 @@ queryWithCallbacksAndTransformPtr adb alloc transform callback complete = do
   let iteration   = 0
       initQ _     = withQueryPtr adb alloc (\qPtr -> queryStart adb qPtr)
       stepQ i a r = callback i r >> withQueryPtr adb a (\qPtr -> queryStep adb qPtr r) >>= iterQ (i + 1) a
-      iterQ i a r = complete i a r >>= thenElseIfM (do { freeDatumFromAllocator a; return r }) (stepQ i (transform i r a) r)
+      iterQ i a r = complete i a r >>= thenElseIfM (return r) (stepQ i (transform i r a) r)
   r0 <- initQ iteration
   iterQ (iteration + 1) alloc r0
 
