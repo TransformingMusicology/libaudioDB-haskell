@@ -73,7 +73,7 @@ type QueryTransformer = (Int -> ADBQueryResultsPtr -> QueryAllocator -> QueryAll
 type QueryCallback a  = (Int -> ADBQueryResultsPtr -> IO a)
 type QueryComplete    = (Int -> QueryAllocator -> ADBQueryResultsPtr -> IO Bool)
 
-type RefinementParams = (Maybe ADBKeyList, Maybe ADBKeyList, Maybe Double, Maybe Double, Maybe Double, Maybe Double, Maybe Int, Maybe Int)
+type RefinementParams = (Maybe ADBKeyList, Maybe ADBKeyList, Maybe Double, Maybe Double, Maybe Double, Maybe Double, Maybe Seconds, Maybe Seconds)
 
 catJustRfnParams :: RefinementParams -> [RefinementFlag]
 catJustRfnParams (incl, excl, rad, absThrsh, relThrsh, durRat, qHopSz, iHopSz) =
@@ -100,8 +100,8 @@ mkQuery :: ADBDatum   -- query datum
            -> Maybe Double     -- absoluate threshold
            -> Maybe Double     -- relative threshold
            -> Maybe Double     -- duration ratio
-           -> Maybe Int        -- query hop size
-           -> Maybe Int        -- instance hop size
+           -> Maybe Seconds    -- query hop size
+           -> Maybe Seconds    -- instance hop size
            -> ADBQuerySpecPtr
            -> IO ()
 
@@ -131,8 +131,8 @@ mkQuery datum secToFrames sqStart sqLen qidFlgs acc dist ptsNN resultLen incl ex
         query_refine_absolute_threshold = (absThrsh // 0),
         query_refine_relative_threshold = (relThrsh // 0),
         query_refine_duration_ratio     = (durRat // 0),
-        query_refine_qhopsize           = (qHopSz // 1),
-        query_refine_ihopsize           = (iHopSz // 1) }
+        query_refine_qhopsize           = fr (qHopSz // 1.0),
+        query_refine_ihopsize           = fr (iHopSz // 1.0) }
       querySpec = ADBQuerySpec {
         query_spec_qid    = qid,
         query_spec_params = params,
@@ -364,8 +364,8 @@ mkNSequenceQuery :: ADBDatum  -- query features
                     -> Seconds     -- sequence length
                     -> Maybe [DistanceFlag]
                     -> Maybe Double -- absolute power threshold
-                    -> Int         -- query hop size
-                    -> Int         -- instance hop size
+                    -> Seconds      -- query hop size
+                    -> Seconds      -- instance hop size
                     -> ADBQuerySpecPtr
                     -> IO ()
 mkNSequenceQuery datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize qPtr =
@@ -379,8 +379,8 @@ execNSequenceQuery :: (Ptr ADB)
                       -> Seconds     -- sequence length
                       -> Maybe [DistanceFlag]
                       -> Maybe Double -- absolute power threshold
-                      -> Int         -- query hop size
-                      -> Int         -- instance hop size
+                      -> Seconds      -- query hop size
+                      -> Seconds      -- instance hop size
                       -> IO ADBQueryResults
 execNSequenceQuery adb datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize =
   querySinglePass adb (mkNSequenceQuery datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize)

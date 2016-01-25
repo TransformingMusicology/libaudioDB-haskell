@@ -96,15 +96,15 @@ test_sequence_query adbFile queryFile qPowersFile start len =
       res <- execSequenceQuery adb datum (floor . (* framesPerSecond)) 25 start len (Just [euclideanNormedFlag]) Nothing
       putStrLn (showResults (reverseResults res))
 
-test_nsequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Int -> IO ()
-test_nsequence_query adbFile queryFile qPowersFile len hopSize = withExistingROAudioDB adbFile runTestOnDB
+test_nsequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Int -> Int -> Seconds -> IO ()
+test_nsequence_query adbFile queryFile qPowersFile len numTracks pointsPerTrack hopSize = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
-      res <- execNSequenceQuery adb datum (floor . (* framesPerSecond)) 10 25 len (Just [euclideanNormedFlag]) Nothing hopSize hopSize
+      res <- execNSequenceQuery adb datum (floor . (* framesPerSecond)) pointsPerTrack numTracks len (Just [euclideanNormedFlag]) query_abs_power_thrsh hopSize hopSize
       putStrLn (showResults (reverseResults res))
 
 test_callback_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
@@ -210,6 +210,9 @@ query_seq_start = undefined
 query_seq_length :: Seconds
 query_seq_length = undefined
 
+query_hop_size :: Seconds
+query_hop_size = undefined
+
 query_hop_size :: Int
 query_hop_size = undefined
 
@@ -220,7 +223,7 @@ main = do
   -- test_create_insert_synthetic new_db_file
   -- test_create_insert new_db_file test_features_file test_features_name test_features_dim
   -- test_sequence_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
-  -- test_nsequence_query db_file test_features_file test_power_features_file query_seq_length query_hop_size
+  -- test_nsequence_query db_file test_features_file test_power_features_file query_seq_length 25 20 query_hop_size
   -- test_transform_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
   -- test_callbacktransform_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
   -- test_rotation_query db_file test_features_file test_power_features_file query_seq_start query_seq_length [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
