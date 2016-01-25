@@ -43,7 +43,9 @@ module Sound.Audio.Database.Query ( QueryAllocator
                                   , execNSequenceQuery
                                   , mkSequenceQueryDeltaNTracks
                                   , mkSequenceQueryWithRotation
-                                  , execSequenceQueryWithRotation ) where
+                                  , execSequenceQueryWithRotation
+                                  , mkNSequenceQueryWithRotation
+                                  , execNSequenceQueryWithRotation ) where
 
 import           AudioDB.API
 import           Control.Exception (throw)
@@ -456,3 +458,36 @@ execSequenceQueryWithRotation :: (Ptr ADB)
 execSequenceQueryWithRotation adb datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations =
   queryWithTransform adb alloc transform isFinished
   where (alloc, transform, isFinished) = mkSequenceQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations
+
+mkNSequenceQueryWithRotation :: ADBDatum        -- query features
+                                -> FeatureRate
+                                -> Int          -- number of point nearest neighbours
+                                -> Int          -- number of tracks
+                                -> Seconds      -- sequence length
+                                -> Maybe [DistanceFlag]
+                                -> Maybe Double -- absolute power threshold
+                                -> Seconds      -- query hop size
+                                -> Seconds      -- instance hop size
+                                -> [Int]        -- rotations
+                                -> (QueryAllocator, QueryTransformer, QueryComplete)
+mkNSequenceQueryWithRotation datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize rotations = (alloc, transform, isFinished)
+  where
+    alloc            = mkNSequenceQuery datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize
+    transform i r a  = mkNSequenceQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize
+    isFinished i _ r = return $ i > (length rotations)
+
+execNSequenceQueryWithRotation :: (Ptr ADB)
+                                  -> ADBDatum     -- query features
+                                  -> FeatureRate
+                                  -> Int          -- number of point nearest neighbours
+                                  -> Int          -- number of tracks
+                                  -> Seconds      -- sequence length
+                                  -> Maybe [DistanceFlag]
+                                  -> Maybe Double -- absolute power threshold
+                                  -> Seconds      -- query hop size
+                                  -> Seconds      -- instance hop size
+                                  -> [Int]        -- rotations
+                                  -> IO ADBQueryResults
+execNSequenceQueryWithRotation adb datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize rotations =
+  queryWithTransform adb alloc transform isFinished
+  where (alloc, transform, isFinished) = mkNSequenceQueryWithRotation datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize rotations
