@@ -224,8 +224,8 @@ query_seq_length = undefined
 query_hop_size :: Seconds
 query_hop_size = undefined
 
-query_hop_size :: Int
-query_hop_size = undefined
+query_abs_power_thrsh :: Maybe Double
+query_abs_power_thrsh = Nothing
 
 main :: IO ()
 main = do
