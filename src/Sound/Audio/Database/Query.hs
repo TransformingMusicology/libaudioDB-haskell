@@ -334,7 +334,7 @@ execSequenceQuery :: (Ptr ADB)
 execSequenceQuery adb datum secToFrames resultLen sqStart sqLen dist absThrsh =
   querySinglePass adb (mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh)
 
-transformSequenceQuery :: (ADBDatumPtr -> IO ADBDatum)     -- query features
+transformSequenceQuery :: (ADBDatum -> ADBDatum)     -- query features
                           -> FeatureRate
                           -> FrameSize
                           -> (Int -> Int)                     -- number of tracks
@@ -346,18 +346,21 @@ transformSequenceQuery :: (ADBDatumPtr -> IO ADBDatum)     -- query features
                           -> QueryAllocator
                           -> ADBQuerySpecPtr
                           -> IO ()
-transformSequenceQuery tDatum secToFrames framesToSec tResultLen tSqStart tSqLen tDist tAbsThrsh resPtr fromAlloc toPtr =
-  withDetachedQueryPtr fromAlloc $ \fromPtr -> do
-    q        <- peek fromPtr
-    let datumPtr = (queryid_datum . query_spec_qid) q
-    datum <- tDatum datumPtr
-    free datumPtr
-    let resultLen = tResultLen $ (query_parameters_ntracks . query_spec_params) q
-        sqStart   = (withSeconds secToFrames framesToSec tSqStart ((queryid_sequence_start . query_spec_qid) q))
-        sqLen     = (withSeconds secToFrames framesToSec tSqLen ((queryid_sequence_length . query_spec_qid) q))
-        dist      = tDist      $ Just $ (query_parameters_distance . query_spec_params) q
-        absThrsh  = tAbsThrsh  $ Just $ (query_refine_absolute_threshold . query_spec_refine) q
-    mkSequenceQuery datum secToFrames resultLen (framesToSec sqStart) (framesToSec sqLen) dist absThrsh toPtr
+transformSequenceQuery tDatum secToFrames framesToSec tResultLen tSqStart tSqLen tDist tAbsThrsh resPtr fromAlloc = newAlloc
+  where
+    newAlloc toPtr = withDetachedQueryPtr fromAlloc $ \fromPtr -> do
+      q <- peek fromPtr
+      let datumPtr = (queryid_datum . query_spec_qid) q
+      datum <- peek datumPtr
+
+      let datum'    = tDatum datum
+          resultLen = tResultLen $ (query_parameters_ntracks . query_spec_params) q
+          sqStart   = (withSeconds secToFrames framesToSec tSqStart ((queryid_sequence_start . query_spec_qid) q))
+          sqLen     = (withSeconds secToFrames framesToSec tSqLen ((queryid_sequence_length . query_spec_qid) q))
+          dist      = tDist      $ Just $ (query_parameters_distance . query_spec_params) q
+          absThrsh  = tAbsThrsh  $ Just $ (query_refine_absolute_threshold . query_spec_refine) q
+      putStrLn "transformSequenceQuery calling mkSequenceQuery"
+      mkSequenceQuery datum' secToFrames resultLen (framesToSec sqStart) (framesToSec sqLen) dist absThrsh toPtr
 
 mkNSequenceQuery :: ADBDatum  -- query features
                     -> FeatureRate
@@ -399,7 +402,7 @@ mkSequenceQueryDeltaNTracks :: FeatureRate
                                -> QueryAllocator
                                -> ADBQuerySpecPtr
                                -> IO ()
-mkSequenceQueryDeltaNTracks secToFrames frameToSecs delta = transformSequenceQuery peekDatum secToFrames frameToSecs delta id id id id
+mkSequenceQueryDeltaNTracks secToFrames frameToSecs delta = transformSequenceQuery id secToFrames frameToSecs delta id id id id
 
 
 rotateVector :: (DV.Storable a) => Int -> DV.Vector a -> DV.Vector a
