@@ -9,8 +9,8 @@ build-type: Simple
 cabal-version: >= 1.8
 
 library
-  build-depends: base, filepath, vector, containers, parsec, MissingH
-  exposed-modules: Sound.Audio.Database, Sound.Audio.Database.Ingest, Sound.Audio.Database.Query, Sound.Audio.Database.Types, Sound.Audio.Features, Sound.Audio.Features.ReadCSV
+  build-depends: base, filepath, vector, containers, parsec, MissingH, text, swish
+  exposed-modules: Sound.Audio.Database, Sound.Audio.Database.Ingest, Sound.Audio.Database.Query, Sound.Audio.Database.Types, Sound.Audio.Features, Sound.Audio.Features.ReadCSV, Sound.Audio.Features.ReadTurtle
   other-modules: AudioDB.API
   hs-source-dirs: src
   ghc-options: -Wall

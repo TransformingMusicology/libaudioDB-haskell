@@ -10,6 +10,7 @@ import           Sound.Audio.Database.Ingest
 import           Sound.Audio.Database.Query
 import           Sound.Audio.Database.Types
 import           Sound.Audio.Features.ReadCSV
+import           Sound.Audio.Features.ReadTurtle
 
 test_readCSVFeatures :: String -> FilePath -> IO ()
 test_readCSVFeatures key fp = do
@@ -21,6 +22,17 @@ test_readCSVFeatures key fp = do
           "; dim: " ++ (show (datum_dim d)) ++
           "; 100 features: " ++ (show (V.take 100 (datum_data d))) ++
           "; 100 times: " ++ (show (maybe (V.fromList [0]) (\t -> (V.take 100 t)) (datum_times d)))
+    ) datum
+
+test_readTurtleFeatures :: String -> FilePath -> IO ()
+test_readTurtleFeatures key fp = do
+  datum <- readTurtleFeaturesOnly key fp
+  maybe (putStrLn "Could not parse.")
+    (\d -> do
+        putStrLn $ show "Key: " ++ (show (datum_key d)) ++
+          "; nVectors: " ++ (show (datum_nvectors d)) ++
+          "; dim: " ++ (show (datum_dim d)) ++
+          "; 100 features: " ++ (show (V.take 100 (datum_data d)))
     ) datum
 
 sample_rate :: Int
@@ -230,6 +242,7 @@ query_abs_power_thrsh = Nothing
 main :: IO ()
 main = do
   -- test_readCSVFeatures test_features_name test_features_file
+  -- test_readTurtleFeatures test_features_name test_features_file
 
   -- test_create_insert_synthetic new_db_file
   -- test_create_insert new_db_file test_features_file test_features_name test_features_dim
