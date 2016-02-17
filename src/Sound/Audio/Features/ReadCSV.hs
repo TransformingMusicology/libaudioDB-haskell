@@ -41,7 +41,7 @@ readCSVFeaturesTimes key featuresFile                  = readFeaturesFile key fe
 readCSVFeaturesOnly key featuresFile                   = readFeaturesFile key featuresFile parseCSVFeaturesWithoutTimesFile Nothing
 
 dblHead :: [String] -> Maybe (Double, [String])
-dblHead (d:ds) = (Just (read d, ds))
+dblHead (d:ds) = (Just (readDbl d, ds))
 dblHead [] = Nothing
 
 ensureTable :: (Either ParseError [[a]]) -> [[a]]

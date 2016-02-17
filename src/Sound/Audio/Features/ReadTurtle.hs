@@ -30,7 +30,7 @@ import           Data.Text.Lazy.IO (readFile)
 import qualified Data.Vector.Storable as DV
 import           Prelude hiding (readFile)
 import           Sound.Audio.Database (ADBDatum(..))
-import           Sound.Audio.Features (DatumProperties, readFeaturesFile)
+import           Sound.Audio.Features (DatumProperties, readFeaturesFile, readDbl)
 import           Swish.RDF.Graph
 import           Swish.RDF.Parser.N3
 import           Swish.RDF.Parser.Turtle
@@ -82,7 +82,7 @@ parseTurtleFeaturesWithoutTimesGraph (Left x) = fail x
 parseTurtleFeaturesWithoutTimesGraph (Right g) = return (nVectors, dimensions, features, Nothing)
   where
     dimensions = head ((map read $ words dim) :: [Int]) -- FIXME I only want one dimension value, but this serialisation seems to contain multiple numbers. What does that mean?
-    features   = DV.fromList ((map read $ words value) :: [Double])
+    features   = DV.fromList ((map readDbl $ words value) :: [Double])
     nVectors   = (DV.length features) `div` dimensions
 
     dim            = firstDim dimBndgs

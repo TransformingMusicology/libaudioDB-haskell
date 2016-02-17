@@ -21,7 +21,8 @@
 module Sound.Audio.Features ( DatumProperties
                             , FeaturesParser
                             , PowerFeaturesParser
-                            , readFeaturesFile ) where
+                            , readFeaturesFile
+                            , readDbl ) where
 
 import           AudioDB.API
 import qualified Data.Vector.Storable as DV
@@ -58,3 +59,14 @@ readFeaturesFile key featuresFile featuresParser Nothing = do
                        , datum_power    = Nothing
                        , datum_times    = times }
   return (Just datum)
+
+readDbl :: String -> Double
+readDbl d = case d of
+  "inf"       -> (read "Infinity")  :: Double
+  "Inf"       -> (read "Infinity")  :: Double
+  "infinity"  -> (read "Infinity")  :: Double
+  "-inf"      -> (read "-Infinity") :: Double
+  "-Inf"      -> (read "-Infinity") :: Double
+  "-infinity" -> (read "-Infinity") :: Double
+  "nan"       -> (read "NaN")       :: Double
+  otherwise   -> (read d)           :: Double
