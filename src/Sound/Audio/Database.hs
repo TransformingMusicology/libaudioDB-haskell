@@ -18,8 +18,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with libaudioDB-haskell. If not, see <http://www.gnu.org/licenses/>.
 
-{-# LANGUAGE DeriveDataTypeable #-}
-
 module Sound.Audio.Database ( QueryException(..)
                             , DatabaseException(..)
                             , FeaturesException(..)
@@ -86,28 +84,13 @@ module Sound.Audio.Database ( QueryException(..)
                             , audiodb_lib_build_date ) where
 
 import AudioDB.API
-import Control.Exception (throw, Exception, bracket)
+import Control.Exception (throw, bracket)
 import Control.Monad (when)
-import Data.Typeable (Typeable)
 import Foreign (Ptr, peek, poke, nullPtr)
 import Foreign.C.String (newCString)
 import Foreign.Marshal.Alloc (alloca, malloc, free)
 import Sound.Audio.Database.Types
 --import System.C.IO
-
-data QueryException = QuerySequenceBoundsException Int Int Int
-                    | QueryDimensionsMismatchException Int Int
-                    deriving (Show, Typeable)
-instance Exception QueryException
-
-data FeaturesException = FeaturesMissingPowersException
-                       | FeaturesDBPowerFlagNotSetException
-                       deriving (Show, Typeable)
-instance Exception FeaturesException
-
-data DatabaseException = DBStatusException
-                       deriving (Show, Typeable)
-instance Exception DatabaseException
 
 openDB :: FilePath -> (Ptr ADB)
 openDB = undefined

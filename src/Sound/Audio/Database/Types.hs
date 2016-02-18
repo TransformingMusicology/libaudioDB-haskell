@@ -18,19 +18,41 @@
 -- You should have received a copy of the GNU General Public License
 -- along with libaudioDB-haskell. If not, see <http://www.gnu.org/licenses/>.
 
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Sound.Audio.Database.Types ( Frame
                                   , Seconds
                                   , FrameSize
                                   , FeatureRate
+                                  , QueryException(..)
+                                  , FeaturesException(..)
+                                  , DatabaseException(..)
                                   , inSeconds
                                   , inFrames
                                   , withSeconds
                                   , withFrames ) where
 
+import Control.Exception (Exception)
+import Data.Typeable (Typeable)
+
 type Frame = Int
 type Seconds = Double
 type FrameSize = (Frame -> Seconds)
 type FeatureRate = (Seconds -> Frame)
+
+data QueryException = QuerySequenceBoundsException Int Int Int
+                    | QueryDimensionsMismatchException Int Int
+                    deriving (Show, Typeable)
+instance Exception QueryException
+
+data FeaturesException = FeaturesMissingPowersException
+                       | FeaturesDBPowerFlagNotSetException
+                       deriving (Show, Typeable)
+instance Exception FeaturesException
+
+data DatabaseException = DBStatusException
+                       deriving (Show, Typeable)
+instance Exception DatabaseException
 
 inSeconds :: FrameSize
 inSeconds = fromIntegral
