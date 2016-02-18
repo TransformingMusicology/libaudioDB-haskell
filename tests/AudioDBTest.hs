@@ -12,28 +12,29 @@ import           Sound.Audio.Database.Types
 import           Sound.Audio.Features.ReadCSV
 import           Sound.Audio.Features.ReadTurtle
 
+showDatum :: ADBDatum -> String
+showDatum datum =
+  show "Key: " ++ (show (datum_key datum)) ++
+  "; nVectors: " ++ (show (datum_nvectors datum)) ++
+  "; dim: " ++ (show (datum_dim datum)) ++
+  "; 100 features: " ++ (show (V.take 100 (datum_data datum))) ++
+  "; 100 times: " ++ (show (maybe (V.fromList [0]) (\t -> (V.take 100 t)) (datum_times datum)))
+
 test_readCSVFeatures :: String -> FilePath -> IO ()
 test_readCSVFeatures key fp = do
   datum <- readCSVFeaturesTimes key fp
-  maybe (putStrLn "Could not parse.")
-    (\d -> do
-        putStrLn $ show "Key: " ++ (show (datum_key d)) ++
-          "; nVectors: " ++ (show (datum_nvectors d)) ++
-          "; dim: " ++ (show (datum_dim d)) ++
-          "; 100 features: " ++ (show (V.take 100 (datum_data d))) ++
-          "; 100 times: " ++ (show (maybe (V.fromList [0]) (\t -> (V.take 100 t)) (datum_times d)))
-    ) datum
+  maybe
+    (putStrLn "Could not parse.")
+    (\d -> putStrLn $ showDatum d)
+    datum
 
 test_readTurtleFeatures :: String -> FilePath -> IO ()
 test_readTurtleFeatures key fp = do
   datum <- readTurtleFeaturesOnly key fp
-  maybe (putStrLn "Could not parse.")
-    (\d -> do
-        putStrLn $ show "Key: " ++ (show (datum_key d)) ++
-          "; nVectors: " ++ (show (datum_nvectors d)) ++
-          "; dim: " ++ (show (datum_dim d)) ++
-          "; 100 features: " ++ (show (V.take 100 (datum_data d)))
-    ) datum
+  maybe
+    (putStrLn "Could not parse.")
+    (\d -> putStrLn $ showDatum d)
+    datum
 
 sample_rate :: Int
 sample_rate = 44100
