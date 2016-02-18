@@ -68,6 +68,18 @@ showResult r =
     dist = showFFloat nd ((result_dist r))
     nd   = Just 2
 
+test_slice_datum :: FilePath -> String -> Seconds -> Seconds -> IO ()
+test_slice_datum adbFN key start len =
+  withExistingROAudioDB adbFN runTestOnDB
+  where
+    runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFN)
+    runTestOnDB (Just adb) = withMaybeDatumSliceIO adb key featureRate start len printDatum
+
+    printDatum Nothing      = putStrLn "Could not slice datum"
+    printDatum (Just datum) = putStrLn $ showDatum datum
+
+    featureRate = floor . (* framesPerSecond)
+
 test_create_insert_synthetic :: FilePath -> IO ()
 test_create_insert_synthetic adbFN =
   withNewL2NormedPoweredAudioDB adbFN 0 0 1 testDB
@@ -244,6 +256,7 @@ main :: IO ()
 main = do
   -- test_readCSVFeatures test_features_name test_features_file
   -- test_readTurtleFeatures test_features_name test_features_file
+  -- test_slice_datum db_file query_key query_seq_start query_seq_length
 
   -- test_create_insert_synthetic new_db_file
   -- test_create_insert new_db_file test_features_file test_features_name test_features_dim

@@ -29,6 +29,8 @@ module Sound.Audio.Database ( QueryException(..)
                             , withMaybeDatumIO
                             , withMaybeDatumPtr
                             , withMaybeDatumPtrIO
+                            , withMaybeDatumSlice
+                            , withMaybeDatumSliceIO
                             , withNewAudioDB
                             , withNewL2NormedAudioDB
                             , withNewPoweredAudioDB
@@ -89,6 +91,7 @@ import Control.Monad (when)
 import Foreign (Ptr, peek, poke, nullPtr)
 import Foreign.C.String (newCString)
 import Foreign.Marshal.Alloc (alloca, malloc, free)
+import Sound.Audio.Features (datumSlice)
 import Sound.Audio.Database.Types
 --import System.C.IO
 
@@ -235,6 +238,31 @@ withMaybeDatumIO adb key f = alloca $ \datumPtr -> do
   if res /= 0
     then f Nothing
     else do { d <- peek datumPtr; f (Just d) }
+
+-- FIXME DRY here: perhaps define datum slicing separately and then define these in terms of withMaybeDatum
+withMaybeDatumSlice :: (Ptr ADB) -> String -> FeatureRate -> Seconds -> Seconds -> (Maybe ADBDatum -> a) -> IO a
+withMaybeDatumSlice adb key featureRate start len f = alloca $ \datumPtr -> do
+  key'  <- newCString key
+  res   <- audiodb_retrieve_datum adb key' datumPtr
+  if res /= 0
+    then do return $ f Nothing
+    else do
+      d <- peek datumPtr
+      case datumSlice d featureRate start len of
+        Right datum -> return $ f (Just datum)
+        Left x      -> throw x
+
+withMaybeDatumSliceIO :: (Ptr ADB) -> String -> FeatureRate -> Seconds -> Seconds -> (Maybe ADBDatum -> IO a) -> IO a
+withMaybeDatumSliceIO adb key featureRate start len f = alloca $ \datumPtr -> do
+  key'  <- newCString key
+  res   <- audiodb_retrieve_datum adb key' datumPtr
+  if res /= 0
+    then f Nothing
+    else do
+      d <- peek datumPtr
+      case datumSlice d featureRate start len of
+        Right datum -> f (Just datum)
+        Left x      -> throw x
 
 checkDimensions :: (Ptr ADB) -> ADBDatum -> IO Bool
 checkDimensions adb datum =
