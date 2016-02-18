@@ -21,6 +21,7 @@
 module Sound.Audio.Features ( DatumProperties
                             , FeaturesParser
                             , PowerFeaturesParser
+                            , datumSlice
                             , readFeaturesFile
                             , readDbl ) where
 
@@ -70,3 +71,23 @@ readDbl d = case d of
   "-infinity" -> (read "-Infinity") :: Double
   "nan"       -> (read "NaN")       :: Double
   otherwise   -> (read d)           :: Double
+
+datumSlice :: ADBDatum -> FeatureRate -> Seconds -> Seconds -> Either QueryException ADBDatum
+datumSlice datum secsToFrames start len
+  | secsToFrames start + secsToFrames len > (datum_nvectors datum) =
+    Left $ QuerySequenceBoundsException (secsToFrames start) (secsToFrames len) (datum_nvectors datum)
+  | otherwise =
+    Right $ ADBDatum { datum_nvectors = nVec
+                     , datum_dim      = datum_dim datum
+                     , datum_key      = key
+                     , datum_data     = getSlice (datum_dim datum) (datum_data datum)
+                     , datum_power    = getMaybeSlice 1 (datum_power datum)
+                     , datum_times    = getMaybeSlice 1 (datum_times datum) }
+  where
+    getSlice d v = DV.slice (d * secsToFrames start) (d * secsToFrames len) v
+    getMaybeSlice _ Nothing  = Nothing
+    getMaybeSlice d (Just v) = Just $ getSlice d v
+
+    nVec = DV.length (getSlice (datum_dim datum) (datum_data datum)) `div` (datum_dim datum)
+
+    key = (datum_key datum) ++ "[" ++ show start ++ "->" ++ show (start + len) ++ "]"
