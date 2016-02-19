@@ -1,4 +1,4 @@
-name: AudioDB
+name: audioDB
 version: 0.1
 synopsis: Bindings to the libaudioDB feature database
 homepage: https://github.com/TransformingMusicology/libaudioDB-haskell
@@ -24,14 +24,14 @@ executable api-test
   extra-libraries: audioDB
 
 executable audiodb-test
-  build-depends: base, vector, parsec, MissingH, filepath, AudioDB
+  build-depends: base, vector, parsec, MissingH, filepath, audioDB
   main-is: AudioDBTest.hs
   hs-source-dirs: tests
   ghc-options: -Wall
   extra-libraries: audioDB
 
 executable tests
-  build-depends: base, vector, parsec, MissingH, filepath, AudioDB, HUnit
+  build-depends: base, vector, parsec, MissingH, filepath, audioDB, HUnit
   main-is: LibTests.hs
   hs-source-dirs: tests
   ghc-options: -Wall

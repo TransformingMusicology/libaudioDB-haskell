@@ -50,7 +50,7 @@ Haskell bindings to the `libaudioDB` library.
    your C++ compiler. If you've installed them in a location in which
    your compiler looks by default (e.g. `/usr/include` for includes
    and `/usr/lib` for the shared library) then you shouldn't need to
-   do anything. Otherwise, you need to edit the `AudioDB.cabal` file
+   do anything. Otherwise, you need to edit the `audioDB.cabal` file
    adding the lines:
 
         include-dirs: /home/you/.local/include
@@ -63,7 +63,7 @@ Haskell bindings to the `libaudioDB` library.
         $ cabal configure
         $ cabal install --only-dependencies
 
-7. Build the AudioDB library:
+7. Build the audioDB library:
 
         $ cabal build
 
@@ -168,7 +168,7 @@ So to create a new database and insert some features, we can do:
 
 ## Running the "tests"
 
-The `AudioDB.cabal` file includes three executable targets:
+The `audioDB.cabal` file includes three executable targets:
 `api-test`, `audiodb-test`, and `tests`. The `api-test` is a simple
 couple of functions which demonstrate (rather than rigorously *test*)
 some of the functions from the (non-exported) `AudioDB.API`
