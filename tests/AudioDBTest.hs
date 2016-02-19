@@ -218,7 +218,7 @@ test_seqpertrack_rotation_query adbFile queryFile qPowersFile start len rotation
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
-      res <- execSequencePerTrackQueryWithRotation adb datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
+      res <- execSequencePerTrackQueryWithRotation adb datum (floor . (* framesPerSecond)) 25 start len (Just [euclideanNormedFlag]) Nothing rotations
       putStrLn (showResults (reverseResults res))
 
 test_nseq_rotation_query :: FilePath -> FilePath -> FilePath -> Seconds -> Int -> Int -> Seconds -> [Int] -> IO ()
@@ -240,7 +240,7 @@ test_polymorphic_seqpertrack_query_with_rotations adbFile queryFile qPowersFile 
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
-      let (qAlloc, qTransform, qComplete) = mkSequencePerTrackQueryWithRotation datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
+      let (qAlloc, qTransform, qComplete) = mkSequencePerTrackQueryWithRotation datum (floor . (* framesPerSecond)) 25 start len (Just [euclideanNormedFlag]) Nothing rotations
       res <- query adb qAlloc (Just qTransform) Nothing (Just qComplete)
       putStrLn $ showResults res
 

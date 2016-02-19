@@ -511,7 +511,6 @@ execSequenceQueryWithRotation adb datum secToFrames ptsNN resultLen sqStart sqLe
 
 mkSequencePerTrackQueryWithRotation :: ADBDatum  -- query features
                                        -> FeatureRate
-                                       -> FrameSize
                                        -> Int          -- number of tracks
                                        -> Seconds      -- sequence start
                                        -> Seconds      -- sequence length
@@ -519,7 +518,7 @@ mkSequencePerTrackQueryWithRotation :: ADBDatum  -- query features
                                        -> Maybe Double -- absolute power threshold
                                        -> [Int]        -- rotations
                                        -> (QueryAllocator, QueryTransformer, QueryComplete)
-mkSequencePerTrackQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations = (alloc, transform, isFinished)
+mkSequencePerTrackQueryWithRotation datum secToFrames resultLen sqStart sqLen dist absThrsh rotations = (alloc, transform, isFinished)
   where
     alloc            = mkSequencePerTrackQuery datum secToFrames resultLen sqStart sqLen dist absThrsh
     transform i r a  = mkSequencePerTrackQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames resultLen sqStart sqLen dist absThrsh
@@ -528,7 +527,6 @@ mkSequencePerTrackQueryWithRotation datum secToFrames frameToSecs resultLen sqSt
 execSequencePerTrackQueryWithRotation :: (Ptr ADB)
                                          -> ADBDatum  -- query features
                                          -> FeatureRate
-                                         -> FrameSize
                                          -> Int          -- number of tracks
                                          -> Seconds      -- sequence start
                                          -> Seconds      -- sequence length
@@ -536,9 +534,9 @@ execSequencePerTrackQueryWithRotation :: (Ptr ADB)
                                          -> Maybe Double -- absolute power threshold
                                          -> [Int]        -- rotations
                                          -> IO ADBQueryResults
-execSequencePerTrackQueryWithRotation adb datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations =
+execSequencePerTrackQueryWithRotation adb datum secToFrames resultLen sqStart sqLen dist absThrsh rotations =
   queryWithTransform adb alloc transform isFinished
-  where (alloc, transform, isFinished) = mkSequencePerTrackQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations
+  where (alloc, transform, isFinished) = mkSequencePerTrackQueryWithRotation datum secToFrames resultLen sqStart sqLen dist absThrsh rotations
 
 mkNSequenceQueryWithRotation :: ADBDatum        -- query features
                                 -> FeatureRate
