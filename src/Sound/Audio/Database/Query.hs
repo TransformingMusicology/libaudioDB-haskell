@@ -36,11 +36,15 @@ module Sound.Audio.Database.Query ( QueryAllocator
                                   , query
                                   , mkPointQuery
                                   , mkTrackQuery
+                                  , mkSequenceQuery
+                                  , execSequenceQuery
                                   , mkSequencePerTrackQuery
                                   , execSequencePerTrackQuery
                                   , transformSequencePerTrackQuery
                                   , mkNSequenceQuery
                                   , execNSequenceQuery
+                                  , mkSequenceQueryWithRotation
+                                  , execSequenceQueryWithRotation
                                   , mkSequencePerTrackQueryDeltaNTracks
                                   , mkSequencePerTrackQueryWithRotation
                                   , execSequencePerTrackQueryWithRotation
@@ -55,6 +59,7 @@ import           Foreign (Ptr, peek, poke)
 import           Foreign.ForeignPtr
 import           Foreign.ForeignPtr.Unsafe
 import           Foreign.Marshal.Alloc (alloca)
+import           Sound.Audio.Features (datumSlice)
 import           Sound.Audio.Database
 import           Sound.Audio.Database.Types
 
@@ -310,6 +315,40 @@ mkTrackQuery :: ADBDatum    -- query features
                 -> IO ()
 mkTrackQuery = undefined
 
+mkSequenceQuery :: ADBDatum  -- query features
+                   -> FeatureRate
+                   -> Int         -- number of point nearest neighbours
+                   -> Int         -- number of tracks
+                   -> Seconds     -- sequence start
+                   -> Seconds     -- sequence length
+                   -> Maybe [DistanceFlag]
+                   -> Maybe Double -- absolute power threshold
+                   -> Seconds      -- query hop size
+                   -> Seconds      -- instance hop size
+                   -> ADBQuerySpecPtr
+                   -> IO ()
+mkSequenceQuery datum secToFrames ptsNN resultLen sqStart sqLen dist absThrsh qHopSize iHopSize qPtr =
+  mkQuery datum (Just secToFrames) (Just sqStart) (Just sqLen) (Just [exhaustiveFlag]) (Just [perTrackFlag]) (dist ||| [euclideanNormedFlag]) (Just ptsNN) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing (Just qHopSize) (Just iHopSize) qPtr
+
+execSequenceQuery :: (Ptr ADB)
+                     -> ADBDatum -- query features
+                     -> FeatureRate
+                     -> Int         -- number of point nearest neighbours
+                     -> Int         -- number of tracks
+                     -> Seconds     -- sequence start
+                     -> Seconds     -- sequence length
+                     -> Maybe [DistanceFlag]
+                     -> Maybe Double -- absolute power threshold
+                     -> Seconds      -- query hop size
+                     -> Seconds      -- instance hop size
+                     -> IO ADBQueryResults
+execSequenceQuery adb datum secToFrames ptsNN resultLen sqStart sqLen dist absThrsh qHopSize iHopSize =
+  querySinglePass adb (mkSequenceQuery slicedDatum secToFrames ptsNN resultLen 0 sqLen dist absThrsh qHopSize iHopSize)
+  where
+    slicedDatum = case datumSlice datum secToFrames sqStart sqLen of
+      Right d -> d
+      Left x  -> throw x
+
 mkSequencePerTrackQuery :: ADBDatum    -- query features
                            -> FeatureRate
                            -> Int         -- number of tracks
@@ -429,6 +468,46 @@ rotateDatum delta datum = datum { datum_data = rotValues }
   where
     values    = datum_data datum
     rotValues = DV.concat $ mapSlices (rotateVector delta) (datum_dim datum) values
+
+mkSequenceQueryWithRotation :: ADBDatum        -- query features
+                               -> FeatureRate
+                               -> Int          -- number of point nearest neighbours
+                               -> Int          -- number of tracks
+                               -> Seconds      -- sequence start
+                               -> Seconds      -- sequence length
+                               -> Maybe [DistanceFlag]
+                               -> Maybe Double -- absolute power threshold
+                               -> Seconds      -- query hop size
+                               -> Seconds      -- instance hop size
+                               -> [Int]        -- rotations
+                               -> (QueryAllocator, QueryTransformer, QueryComplete)
+mkSequenceQueryWithRotation datum secToFrames ptsNN resultLen sqStart sqLen dist absThrsh qHopSize iHopSize rotations = (alloc, transform, isFinished)
+  where
+    alloc            = mkSequenceQuery slicedDatum secToFrames ptsNN resultLen 0 sqLen dist absThrsh qHopSize iHopSize
+    transform i r a  = mkSequenceQuery (rotateDatum (rotations!!(i - 1)) slicedDatum) secToFrames ptsNN resultLen 0 sqLen dist absThrsh qHopSize iHopSize
+    isFinished i _ r = return $ i > (length rotations)
+
+    slicedDatum = case datumSlice datum secToFrames sqStart sqLen of
+      Right d -> d
+      Left x  -> throw x
+
+
+execSequenceQueryWithRotation :: (Ptr ADB)
+                                 -> ADBDatum     -- query features
+                                 -> FeatureRate
+                                 -> Int          -- number of point nearest neighbours
+                                 -> Int          -- number of tracks
+                                 -> Seconds      -- sequence length
+                                 -> Seconds      -- sequence length
+                                 -> Maybe [DistanceFlag]
+                                 -> Maybe Double -- absolute power threshold
+                                 -> Seconds      -- query hop size
+                                 -> Seconds      -- instance hop size
+                                 -> [Int]        -- rotations
+                                 -> IO ADBQueryResults
+execSequenceQueryWithRotation adb datum secToFrames ptsNN resultLen sqStart sqLen dist absThrsh qHopSize iHopSize rotations =
+  queryWithTransform adb alloc transform isFinished
+  where (alloc, transform, isFinished) = mkSequenceQueryWithRotation datum secToFrames ptsNN resultLen sqStart sqLen dist absThrsh qHopSize iHopSize rotations
 
 mkSequencePerTrackQueryWithRotation :: ADBDatum  -- query features
                                        -> FeatureRate

@@ -109,6 +109,17 @@ test_create_insert adbFN featureFN featureKey dbDim =
       inserted <- insertMaybeFeatures adb datum
       putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
 
+test_sequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> Int -> Int -> Seconds -> IO ()
+test_sequence_query adbFile queryFile qPowersFile start len numTracks pointsPerTrack hopSize = withExistingROAudioDB adbFile runTestOnDB
+  where
+    runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
+
+    testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
+    testQuery adb (Just datum) = do
+      res <- execSequenceQuery adb datum (floor . (* framesPerSecond)) pointsPerTrack numTracks start len (Just [euclideanNormedFlag]) query_abs_power_thrsh hopSize hopSize
+      putStrLn (showResults (reverseResults res))
+
 test_sequencepertrack_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
 test_sequencepertrack_query adbFile queryFile qPowersFile start len =
   withExistingROAudioDB adbFile runTestOnDB
@@ -188,6 +199,17 @@ test_callbacktransform_query adbFile queryFile qPowersFile start len = withExist
       putStrLn "Final results:"
       putStrLn $ showResults (reverseResults res)
 
+test_seq_rotation_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> Int -> Int -> Seconds -> [Int] -> IO ()
+test_seq_rotation_query adbFile queryFile qPowersFile start len numTracks pointsPerTrack hopSize rotations = withExistingROAudioDB adbFile runTestOnDB
+  where
+    runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
+    runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
+
+    testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
+    testQuery adb (Just datum) = do
+      res <- execSequenceQueryWithRotation adb datum (floor . (* framesPerSecond)) pointsPerTrack numTracks start len (Just [euclideanNormedFlag]) query_abs_power_thrsh hopSize hopSize rotations
+      putStrLn (showResults (reverseResults res))
+
 test_seqpertrack_rotation_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> [Int] -> IO ()
 test_seqpertrack_rotation_query adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB
   where
@@ -260,10 +282,12 @@ main = do
 
   -- test_create_insert_synthetic new_db_file
   -- test_create_insert new_db_file test_features_file test_features_name test_features_dim
+  -- test_sequence_query db_file test_features_file test_power_features_file query_seq_start query_seq_length 25 20 query_hop_size
   -- test_sequencepertrack_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
   -- test_nsequence_query db_file test_features_file test_power_features_file query_seq_length 25 20 query_hop_size
   -- test_transform_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
   -- test_callbacktransform_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
+  -- test_seq_rotation_query db_file test_features_file test_power_features_file query_seq_start query_seq_length 7 30 query_hop_size [1..11]
   -- test_seqpertrack_rotation_query db_file test_features_file test_power_features_file query_seq_start query_seq_length [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
   -- test_nseq_rotation_query db_file test_features_file test_power_features_file query_seq_length 38 30 query_hop_size [1..11]
   -- test_polymorphic_seqpertrack_query_with_rotations db_file test_features_file test_power_features_file query_seq_start query_seq_length [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
