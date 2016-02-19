@@ -36,14 +36,14 @@ module Sound.Audio.Database.Query ( QueryAllocator
                                   , query
                                   , mkPointQuery
                                   , mkTrackQuery
-                                  , mkSequenceQuery
-                                  , execSequenceQuery
-                                  , transformSequenceQuery
+                                  , mkSequencePerTrackQuery
+                                  , execSequencePerTrackQuery
+                                  , transformSequencePerTrackQuery
                                   , mkNSequenceQuery
                                   , execNSequenceQuery
-                                  , mkSequenceQueryDeltaNTracks
-                                  , mkSequenceQueryWithRotation
-                                  , execSequenceQueryWithRotation
+                                  , mkSequencePerTrackQueryDeltaNTracks
+                                  , mkSequencePerTrackQueryWithRotation
+                                  , execSequencePerTrackQueryWithRotation
                                   , mkNSequenceQueryWithRotation
                                   , execNSequenceQueryWithRotation ) where
 
@@ -310,43 +310,43 @@ mkTrackQuery :: ADBDatum    -- query features
                 -> IO ()
 mkTrackQuery = undefined
 
-mkSequenceQuery :: ADBDatum    -- query features
-                   -> FeatureRate
-                   -> Int         -- number of tracks
-                   -> Seconds     -- sequence start
-                   -> Seconds     -- sequence length
-                   -> Maybe [DistanceFlag]
-                   -> Maybe Double -- absolute power threshold
-                   -> ADBQuerySpecPtr
-                   -> IO ()
-mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh qPtr =
+mkSequencePerTrackQuery :: ADBDatum    -- query features
+                           -> FeatureRate
+                           -> Int         -- number of tracks
+                           -> Seconds     -- sequence start
+                           -> Seconds     -- sequence length
+                           -> Maybe [DistanceFlag]
+                           -> Maybe Double -- absolute power threshold
+                           -> ADBQuerySpecPtr
+                           -> IO ()
+mkSequencePerTrackQuery datum secToFrames resultLen sqStart sqLen dist absThrsh qPtr =
   mkQuery datum (Just secToFrames) (Just sqStart) (Just sqLen) Nothing (Just [perTrackFlag]) (dist ||| [euclideanNormedFlag]) (Just 1) (Just resultLen) Nothing Nothing Nothing (absThrsh ||| 0) Nothing Nothing Nothing Nothing qPtr
 
-execSequenceQuery :: (Ptr ADB)
-                     -> ADBDatum -- query features
-                     -> FeatureRate
-                     -> Int         -- number of tracks
-                     -> Seconds     -- sequence start
-                     -> Seconds     -- sequence length
-                     -> Maybe [DistanceFlag]
-                     -> Maybe Double -- absolute power threshold
-                     -> IO ADBQueryResults
-execSequenceQuery adb datum secToFrames resultLen sqStart sqLen dist absThrsh =
-  querySinglePass adb (mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh)
+execSequencePerTrackQuery :: (Ptr ADB)
+                             -> ADBDatum -- query features
+                             -> FeatureRate
+                             -> Int         -- number of tracks
+                             -> Seconds     -- sequence start
+                             -> Seconds     -- sequence length
+                             -> Maybe [DistanceFlag]
+                             -> Maybe Double -- absolute power threshold
+                             -> IO ADBQueryResults
+execSequencePerTrackQuery adb datum secToFrames resultLen sqStart sqLen dist absThrsh =
+  querySinglePass adb (mkSequencePerTrackQuery datum secToFrames resultLen sqStart sqLen dist absThrsh)
 
-transformSequenceQuery :: (ADBDatum -> ADBDatum)     -- query features
-                          -> FeatureRate
-                          -> FrameSize
-                          -> (Int -> Int)                     -- number of tracks
-                          -> (Seconds -> Seconds)             -- sequence start
-                          -> (Seconds -> Seconds)             -- sequence length
-                          -> (Maybe [DistanceFlag] -> Maybe [DistanceFlag])
-                          -> (Maybe Double -> Maybe Double)   -- absolute power threshold)
-                          -> ADBQueryResultsPtr
-                          -> QueryAllocator
-                          -> ADBQuerySpecPtr
-                          -> IO ()
-transformSequenceQuery tDatum secToFrames framesToSec tResultLen tSqStart tSqLen tDist tAbsThrsh resPtr fromAlloc = newAlloc
+transformSequencePerTrackQuery :: (ADBDatum -> ADBDatum)     -- query features
+                                  -> FeatureRate
+                                  -> FrameSize
+                                  -> (Int -> Int)                     -- number of tracks
+                                  -> (Seconds -> Seconds)             -- sequence start
+                                  -> (Seconds -> Seconds)             -- sequence length
+                                  -> (Maybe [DistanceFlag] -> Maybe [DistanceFlag])
+                                  -> (Maybe Double -> Maybe Double)   -- absolute power threshold)
+                                  -> ADBQueryResultsPtr
+                                  -> QueryAllocator
+                                  -> ADBQuerySpecPtr
+                                  -> IO ()
+transformSequencePerTrackQuery tDatum secToFrames framesToSec tResultLen tSqStart tSqLen tDist tAbsThrsh resPtr fromAlloc = newAlloc
   where
     newAlloc toPtr = withDetachedQueryPtr fromAlloc $ \fromPtr -> do
       q <- peek fromPtr
@@ -359,8 +359,8 @@ transformSequenceQuery tDatum secToFrames framesToSec tResultLen tSqStart tSqLen
           sqLen     = (withSeconds secToFrames framesToSec tSqLen ((queryid_sequence_length . query_spec_qid) q))
           dist      = tDist      $ Just $ (query_parameters_distance . query_spec_params) q
           absThrsh  = tAbsThrsh  $ Just $ (query_refine_absolute_threshold . query_spec_refine) q
-      putStrLn "transformSequenceQuery calling mkSequenceQuery"
-      mkSequenceQuery datum' secToFrames resultLen (framesToSec sqStart) (framesToSec sqLen) dist absThrsh toPtr
+      putStrLn "transformSequencePerTrackQuery calling mkSequencePerTrackQuery"
+      mkSequencePerTrackQuery datum' secToFrames resultLen (framesToSec sqStart) (framesToSec sqLen) dist absThrsh toPtr
 
 mkNSequenceQuery :: ADBDatum  -- query features
                     -> FeatureRate
@@ -395,15 +395,14 @@ mkOneToOneSequenceQuery :: ADBDatum  -- query features
                            -> IO ()
 mkOneToOneSequenceQuery = undefined
 
-mkSequenceQueryDeltaNTracks :: FeatureRate
-                               -> FrameSize
-                               -> (Int -> Int)
-                               -> ADBQueryResultsPtr
-                               -> QueryAllocator
-                               -> ADBQuerySpecPtr
-                               -> IO ()
-mkSequenceQueryDeltaNTracks secToFrames frameToSecs delta = transformSequenceQuery id secToFrames frameToSecs delta id id id id
-
+mkSequencePerTrackQueryDeltaNTracks :: FeatureRate
+                                       -> FrameSize
+                                       -> (Int -> Int)
+                                       -> ADBQueryResultsPtr
+                                       -> QueryAllocator
+                                       -> ADBQuerySpecPtr
+                                       -> IO ()
+mkSequencePerTrackQueryDeltaNTracks secToFrames frameToSecs delta = transformSequencePerTrackQuery id secToFrames frameToSecs delta id id id id
 
 rotateVector :: (DV.Storable a) => Int -> DV.Vector a -> DV.Vector a
 rotateVector delta v = (DV.++) back front
@@ -431,36 +430,36 @@ rotateDatum delta datum = datum { datum_data = rotValues }
     values    = datum_data datum
     rotValues = DV.concat $ mapSlices (rotateVector delta) (datum_dim datum) values
 
-mkSequenceQueryWithRotation :: ADBDatum  -- query features
-                               -> FeatureRate
-                               -> FrameSize
-                               -> Int          -- number of tracks
-                               -> Seconds      -- sequence start
-                               -> Seconds      -- sequence length
-                               -> Maybe [DistanceFlag]
-                               -> Maybe Double -- absolute power threshold
-                               -> [Int]        -- rotations
-                               -> (QueryAllocator, QueryTransformer, QueryComplete)
-mkSequenceQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations = (alloc, transform, isFinished)
+mkSequencePerTrackQueryWithRotation :: ADBDatum  -- query features
+                                       -> FeatureRate
+                                       -> FrameSize
+                                       -> Int          -- number of tracks
+                                       -> Seconds      -- sequence start
+                                       -> Seconds      -- sequence length
+                                       -> Maybe [DistanceFlag]
+                                       -> Maybe Double -- absolute power threshold
+                                       -> [Int]        -- rotations
+                                       -> (QueryAllocator, QueryTransformer, QueryComplete)
+mkSequencePerTrackQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations = (alloc, transform, isFinished)
   where
-    alloc            = mkSequenceQuery datum secToFrames resultLen sqStart sqLen dist absThrsh
-    transform i r a  = mkSequenceQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames resultLen sqStart sqLen dist absThrsh
+    alloc            = mkSequencePerTrackQuery datum secToFrames resultLen sqStart sqLen dist absThrsh
+    transform i r a  = mkSequencePerTrackQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames resultLen sqStart sqLen dist absThrsh
     isFinished i _ r = return $ i > (length rotations)
 
-execSequenceQueryWithRotation :: (Ptr ADB)
-                               -> ADBDatum  -- query features
-                               -> FeatureRate
-                               -> FrameSize
-                               -> Int          -- number of tracks
-                               -> Seconds      -- sequence start
-                               -> Seconds      -- sequence length
-                               -> Maybe [DistanceFlag]
-                               -> Maybe Double -- absolute power threshold
-                               -> [Int]        -- rotations
-                               -> IO ADBQueryResults
-execSequenceQueryWithRotation adb datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations =
+execSequencePerTrackQueryWithRotation :: (Ptr ADB)
+                                         -> ADBDatum  -- query features
+                                         -> FeatureRate
+                                         -> FrameSize
+                                         -> Int          -- number of tracks
+                                         -> Seconds      -- sequence start
+                                         -> Seconds      -- sequence length
+                                         -> Maybe [DistanceFlag]
+                                         -> Maybe Double -- absolute power threshold
+                                         -> [Int]        -- rotations
+                                         -> IO ADBQueryResults
+execSequencePerTrackQueryWithRotation adb datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations =
   queryWithTransform adb alloc transform isFinished
-  where (alloc, transform, isFinished) = mkSequenceQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations
+  where (alloc, transform, isFinished) = mkSequencePerTrackQueryWithRotation datum secToFrames frameToSecs resultLen sqStart sqLen dist absThrsh rotations
 
 mkNSequenceQueryWithRotation :: ADBDatum        -- query features
                                 -> FeatureRate

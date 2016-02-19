@@ -109,8 +109,8 @@ test_create_insert adbFN featureFN featureKey dbDim =
       inserted <- insertMaybeFeatures adb datum
       putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
 
-test_sequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
-test_sequence_query adbFile queryFile qPowersFile start len =
+test_sequencepertrack_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> IO ()
+test_sequencepertrack_query adbFile queryFile qPowersFile start len =
   withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
@@ -118,7 +118,7 @@ test_sequence_query adbFile queryFile qPowersFile start len =
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
-      res <- execSequenceQuery adb datum (floor . (* framesPerSecond)) 25 start len (Just [euclideanNormedFlag]) Nothing
+      res <- execSequencePerTrackQuery adb datum (floor . (* framesPerSecond)) 25 start len (Just [euclideanNormedFlag]) Nothing
       putStrLn (showResults (reverseResults res))
 
 test_nsequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Int -> Int -> Seconds -> IO ()
@@ -141,7 +141,7 @@ test_callback_query adbFile queryFile qPowersFile start len = withExistingROAudi
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
       let ntracks          = query_parameters_ntracks . query_spec_params
-          qAlloc           = mkSequenceQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
+          qAlloc           = mkSequencePerTrackQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
           isFinished _ _ _ = putStrLn "isFinished..." >> return False -- withQueryPtr adb a (\qPtr -> do { q <- peek qPtr; return $ ntracks q >= 25 })
           callback i r     = do
             res <- peek r
@@ -162,9 +162,9 @@ test_transform_query adbFile queryFile qPowersFile start len = withExistingROAud
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
       let ntracks          = query_parameters_ntracks . query_spec_params
-          qAlloc           = mkSequenceQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
+          qAlloc           = mkSequencePerTrackQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
           isFinished _ _ r = withResults r (\res -> return $ (query_results_nresults res) >= 20)
-          transform _ r a  = mkSequenceQueryDeltaNTracks (floor . (* framesPerSecond)) framesToSeconds (\x -> x + 5) r a
+          transform _ r a  = mkSequencePerTrackQueryDeltaNTracks (floor . (* framesPerSecond)) framesToSeconds (\x -> x + 5) r a
 
       res <- queryWithTransform adb qAlloc transform isFinished
       putStrLn "Final results:"
@@ -179,24 +179,24 @@ test_callbacktransform_query adbFile queryFile qPowersFile start len = withExist
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
       let ntracks          = query_parameters_ntracks . query_spec_params
-          qAlloc           = mkSequenceQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
+          qAlloc           = mkSequencePerTrackQuery datum (floor . (* framesPerSecond)) 5 start len (Just [euclideanNormedFlag]) Nothing
           isFinished _ a _ = withQuery adb a (\q -> do { return $ (ntracks q) >= 20 }) --withResults r (\res -> return $ (query_results_nresults res) >= 20)
           callback i r     = withResults r (\res -> do { putStrLn $ "#" ++ (show i) ++ ": " ++ (showResults res); return $ (query_results_nresults res) })
-          transform _ r a  = mkSequenceQueryDeltaNTracks (floor . (* framesPerSecond)) framesToSeconds (\x -> x + 5) r a
+          transform _ r a  = mkSequencePerTrackQueryDeltaNTracks (floor . (* framesPerSecond)) framesToSeconds (\x -> x + 5) r a
 
       res <- queryWithCallbacksAndTransform adb qAlloc transform callback isFinished
       putStrLn "Final results:"
       putStrLn $ showResults (reverseResults res)
 
-test_seq_rotation_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> [Int] -> IO ()
-test_seq_rotation_query adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB
+test_seqpertrack_rotation_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> [Int] -> IO ()
+test_seqpertrack_rotation_query adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
-      res <- execSequenceQueryWithRotation adb datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
+      res <- execSequencePerTrackQueryWithRotation adb datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
       putStrLn (showResults (reverseResults res))
 
 test_nseq_rotation_query :: FilePath -> FilePath -> FilePath -> Seconds -> Int -> Int -> Seconds -> [Int] -> IO ()
@@ -210,15 +210,15 @@ test_nseq_rotation_query adbFile queryFile qPowersFile len numTracks pointsPerTr
       res <- execNSequenceQueryWithRotation adb datum (floor . (* framesPerSecond)) pointsPerTrack numTracks len (Just [euclideanNormedFlag]) query_abs_power_thrsh hopSize hopSize rotations
       putStrLn (showResults (reverseResults res))
 
-test_polymorphic_seq_query_with_rotations :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> [Int] -> IO ()
-test_polymorphic_seq_query_with_rotations adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB
+test_polymorphic_seqpertrack_query_with_rotations :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> [Int] -> IO ()
+test_polymorphic_seqpertrack_query_with_rotations adbFile queryFile qPowersFile start len rotations = withExistingROAudioDB adbFile runTestOnDB
   where
     runTestOnDB Nothing    = putStrLn $ "Could not open " ++ (show adbFile)
     runTestOnDB (Just adb) = readCSVFeaturesTimesPowers test_features_name queryFile qPowersFile >>= testQuery adb
 
     testQuery _ Nothing = putStrLn $ "Could not parse " ++ queryFile
     testQuery adb (Just datum) = do
-      let (qAlloc, qTransform, qComplete) = mkSequenceQueryWithRotation datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
+      let (qAlloc, qTransform, qComplete) = mkSequencePerTrackQueryWithRotation datum (floor . (* framesPerSecond)) framesToSeconds 25 start len (Just [euclideanNormedFlag]) Nothing rotations
       res <- query adb qAlloc (Just qTransform) Nothing (Just qComplete)
       putStrLn $ showResults res
 
@@ -260,12 +260,13 @@ main = do
 
   -- test_create_insert_synthetic new_db_file
   -- test_create_insert new_db_file test_features_file test_features_name test_features_dim
-  -- test_sequence_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
+  -- test_sequencepertrack_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
   -- test_nsequence_query db_file test_features_file test_power_features_file query_seq_length 25 20 query_hop_size
   -- test_transform_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
   -- test_callbacktransform_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
-  -- test_seq_rotation_query db_file test_features_file test_power_features_file query_seq_start query_seq_length [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  -- test_seqpertrack_rotation_query db_file test_features_file test_power_features_file query_seq_start query_seq_length [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
   -- test_nseq_rotation_query db_file test_features_file test_power_features_file query_seq_length 38 30 query_hop_size [1..11]
-  -- test_polymorphic_seq_query_with_rotations db_file test_features_file test_power_features_file query_seq_start query_seq_length [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  -- test_polymorphic_seqpertrack_query_with_rotations db_file test_features_file test_power_features_file query_seq_start query_seq_length [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  -- test_nseq_rotation_query_from_key_slice db_file query_key query_seq_start query_seq_length 7 30 query_seq_length [1..11]
 
   putStrLn "Done."
