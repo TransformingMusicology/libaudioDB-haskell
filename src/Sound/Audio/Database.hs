@@ -21,6 +21,7 @@
 module Sound.Audio.Database ( QueryException(..)
                             , DatabaseException(..)
                             , FeaturesException(..)
+                            , withExistingAudioDB
                             , withExistingROAudioDB
                             , withADBStatus
                             , withDatumAsPtr
@@ -107,8 +108,12 @@ createDB = undefined
 withAudioDB :: (ADBQuerySpec -> ADBResult) -> FeatureRate -> (Ptr ADB) -> ADBResult
 withAudioDB = undefined
 
-withExistingAudioDB :: (ADBQuerySpec -> ADBResult) -> FeatureRate -> FilePath -> ADBResult
-withExistingAudioDB = undefined
+withExistingAudioDB :: FilePath -> (Maybe (Ptr ADB) -> IO a) -> IO a
+withExistingAudioDB fp f = do
+  adbFN  <- newCString fp
+  bracket (audiodb_open adbFN 2)--(oflags [O_RDWR]))
+    (\adb -> if adb /= nullPtr then audiodb_close adb else return ())
+    (\adb -> f $ if adb /= nullPtr then Just adb else Nothing)
 
 withExistingROAudioDB :: FilePath -> (Maybe (Ptr ADB) -> IO a) -> IO a
 withExistingROAudioDB fp f = do
