@@ -123,6 +123,28 @@ test_insert adbFN featureFN featureKey dbDim = do
       inserted <- insertMaybeFeatures adb datum
       putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
 
+test_create_insert_slice :: FilePath -> FilePath -> String -> Int -> Seconds -> Seconds -> IO ()
+test_create_insert_slice adbFN featureFN featureKey dbDim from to =
+  withNewAudioDB adbFN 0 0 dbDim False False testDB
+  where
+    testDB Nothing    = putStrLn $ "Could not create database: " ++ adbFN
+    testDB (Just adb) = do
+      datum    <- readCSVFeaturesTimes featureKey featureFN
+      inserted <- insertMaybeFeaturesSlice adb datum featureRate from (to - from)
+      putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
+    featureRate = floor . (* framesPerSecond)
+
+test_insert_slice :: FilePath -> FilePath -> String -> Int -> Seconds -> Seconds -> IO ()
+test_insert_slice adbFN featureFN featureKey dbDim from to =
+  withExistingAudioDB adbFN testDB
+  where
+    testDB Nothing    = putStrLn $ "Could not open database: " ++ adbFN
+    testDB (Just adb) = do
+      datum    <- readCSVFeaturesTimes featureKey featureFN
+      inserted <- insertMaybeFeaturesSlice adb datum featureRate from (to - from)
+      putStrLn $ "Inserted '" ++ featureKey ++ "': " ++ (show inserted)
+    featureRate = floor . (* framesPerSecond)
+
 test_sequence_query :: FilePath -> FilePath -> FilePath -> Seconds -> Seconds -> Int -> Int -> Seconds -> IO ()
 test_sequence_query adbFile queryFile qPowersFile start len numTracks pointsPerTrack hopSize = withExistingROAudioDB adbFile runTestOnDB
   where
@@ -297,6 +319,8 @@ main = do
   -- test_create_insert_synthetic new_db_file
   -- test_create_insert new_db_file test_features_file test_features_name test_features_dim
   -- test_insert new_db_file test_features_file test_features_name test_features_dim
+  -- test_create_insert_slice new_db_file test_features_file test_features_name test_features_dim 10.0 20.0
+  -- test_insert_slice new_db_file test_features_file test_features_name test_features_dim 250.0 350.0
   -- test_sequence_query db_file test_features_file test_power_features_file query_seq_start query_seq_length 25 20 query_hop_size
   -- test_sequencepertrack_query db_file test_features_file test_power_features_file query_seq_start query_seq_length
   -- test_nsequence_query db_file test_features_file test_power_features_file query_seq_length 25 20 query_hop_size

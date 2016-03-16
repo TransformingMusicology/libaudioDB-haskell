@@ -20,8 +20,10 @@
 
 module Sound.Audio.Database.Ingest ( insertFeatures
                                    , insertFeaturesPtr
+                                   , insertFeaturesSlice
                                    , insertMaybeFeatures
-                                   , insertMaybeFeaturesPtr ) where
+                                   , insertMaybeFeaturesPtr
+                                   , insertMaybeFeaturesSlice ) where
 
 import AudioDB.API
 import Control.Exception (throwIO)
@@ -30,6 +32,8 @@ import Foreign (Ptr, peek, poke)
 import Foreign.C.Types
 import Foreign.Marshal.Alloc (alloca)
 import Sound.Audio.Database
+import Sound.Audio.Database.Types (Seconds, FeatureRate)
+import Sound.Audio.Features (datumSlice)
 
 insertFeaturesPtr :: (Ptr ADB) -> ADBDatumPtr -> IO Bool
 insertFeaturesPtr adb datumPtr =
@@ -55,6 +59,16 @@ insertFeatures adb datum =
              else throwIO FeaturesDBPowerFlagNotSetException
       let success = res == (0 :: CInt)
       return success
+
+insertFeaturesSlice :: (Ptr ADB) -> ADBDatum -> FeatureRate -> Seconds -> Seconds -> IO Bool
+insertFeaturesSlice adb datum secsToFrames start len =
+  case datumSlice datum secsToFrames start len of
+    Right slice -> insertFeatures adb slice
+    Left _      -> return False
+
+insertMaybeFeaturesSlice :: (Ptr ADB) -> Maybe ADBDatum -> FeatureRate -> Seconds -> Seconds -> IO Bool
+insertMaybeFeaturesSlice adb (Just datum) secsToFrames start len = insertFeaturesSlice adb datum secsToFrames start len
+insertMaybeFeaturesSlice _ Nothing _ _ _                         = return False
 
 insertMaybeFeaturesPtr :: (Ptr ADB) -> Maybe ADBDatumPtr -> IO Bool
 insertMaybeFeaturesPtr adb (Just datumPtr) = insertFeaturesPtr adb datumPtr
