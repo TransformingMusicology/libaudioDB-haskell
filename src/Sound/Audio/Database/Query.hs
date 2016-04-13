@@ -25,7 +25,9 @@ module Sound.Audio.Database.Query ( QueryAllocator
                                   , querySinglePass
                                   , querySinglePassPtr
                                   , withQuery
+                                  , unsafeWithQuery
                                   , applyQuery
+                                  , unsafeApplyQuery
                                   , withResults
                                   , reverseResults
                                   , reverseResultsPtr
@@ -157,8 +159,17 @@ withQueryPtr adb allocQuery f =
              dimOk <- checkDimensions adb datum
              (f qPtr))
 
+unsafeWithQueryPtr :: (Ptr ADB) -> QueryAllocator -> (ADBQuerySpecPtr -> IO a) -> IO a
+unsafeWithQueryPtr adb allocQuery f =
+  alloca (\qPtr -> do
+             allocQuery qPtr
+             (f qPtr))
+
 applyQueryPtr :: (Ptr ADB) -> (ADBQuerySpecPtr -> IO a) -> QueryAllocator -> IO a
 applyQueryPtr adb f allocQuery = withQueryPtr adb allocQuery f
+
+unsafeApplyQueryPtr :: (Ptr ADB) -> (ADBQuerySpecPtr -> IO a) -> QueryAllocator -> IO a
+unsafeApplyQueryPtr adb f allocQuery = unsafeWithQueryPtr adb allocQuery f
 
 withQuery :: (Ptr ADB) -> QueryAllocator -> (ADBQuerySpec -> IO a) -> IO a
 withQuery adb allocQuery f =
@@ -169,8 +180,18 @@ withQuery adb allocQuery f =
              dimOk <- checkDimensions adb datum
              (f q))
 
+unsafeWithQuery :: (Ptr ADB) -> QueryAllocator -> (ADBQuerySpec -> IO a) -> IO a
+unsafeWithQuery adb allocQuery f =
+  alloca (\qPtr -> do
+             allocQuery qPtr
+             q <- peek qPtr
+             (f q))
+
 applyQuery :: (Ptr ADB) -> (ADBQuerySpec -> IO a) -> QueryAllocator -> IO a
 applyQuery adb f allocQuery = withQuery adb allocQuery f
+
+unsafeApplyQuery :: (Ptr ADB) -> (ADBQuerySpec -> IO a) -> QueryAllocator -> IO a
+unsafeApplyQuery adb f allocQuery = unsafeWithQuery adb allocQuery f
 
 -- A 'detached query' is a query that's not associated with an
 -- ADB. It's used for query manipulation.
@@ -217,14 +238,14 @@ saveDatum datumPtr = do
 
 querySinglePass :: (Ptr ADB) -> QueryAllocator -> IO ADBQueryResults
 querySinglePass adb allocQuery =
-  withQueryPtr adb allocQuery $ \qPtr -> do
+  unsafeWithQueryPtr adb allocQuery $ \qPtr -> do
     r <- audiodb_query_spec adb qPtr
     freeQSpecDatum qPtr
     peek r >>= return
 
 querySinglePassPtr :: (Ptr ADB) -> QueryAllocator -> IO ADBQueryResultsPtr
 querySinglePassPtr adb allocQuery =
-  withQueryPtr adb allocQuery $ \qPtr -> do
+  unsafeWithQueryPtr adb allocQuery $ \qPtr -> do
     r <- audiodb_query_spec adb qPtr
     freeQSpecDatum qPtr
     return r
@@ -264,7 +285,7 @@ thenElseIfM t f p = if p then t else f
 
 queryWithCallbackPtr :: (Ptr ADB) -> QueryAllocator -> QueryCallback a -> QueryComplete -> IO ADBQueryResultsPtr
 queryWithCallbackPtr adb alloc callback isFinished =
-  withQueryPtr adb alloc (\qPtr -> do
+  unsafeWithQueryPtr adb alloc (\qPtr -> do
                              let iteration = 0
                                  initQ _   = queryStart adb qPtr
                                  stepQ i r = callback i r >> queryStep adb qPtr r >>= iterQ (i + 1)
@@ -279,8 +300,8 @@ queryWithCallback adb alloc callback isFinished =
 queryWithTransformPtr :: (Ptr ADB) -> QueryAllocator -> QueryTransformer -> QueryComplete -> IO ADBQueryResultsPtr
 queryWithTransformPtr adb alloc transform complete = do
   let iteration   = 0
-      initQ _     = withQueryPtr adb alloc (\qPtr -> queryStart adb qPtr)
-      stepQ i a r = withQueryPtr adb a (\qPtr -> queryStep adb qPtr r) >>= iterQ (i + 1) a
+      initQ _     = unsafeWithQueryPtr adb alloc (\qPtr -> queryStart adb qPtr)
+      stepQ i a r = unsafeWithQueryPtr adb a (\qPtr -> queryStep adb qPtr r) >>= iterQ (i + 1) a
       iterQ i a r = complete i a r >>= thenElseIfM (do { freeDatumFromAllocator a; return r }) (stepQ i (transform i r a) r)
   r0 <- initQ iteration
   iterQ (iteration + 1) alloc r0
@@ -292,8 +313,8 @@ queryWithTransform adb alloc transform complete =
 queryWithCallbacksAndTransformPtr :: (Ptr ADB) -> QueryAllocator -> QueryTransformer -> QueryCallback a -> QueryComplete -> IO ADBQueryResultsPtr
 queryWithCallbacksAndTransformPtr adb alloc transform callback complete = do
   let iteration   = 0
-      initQ _     = withQueryPtr adb alloc (\qPtr -> queryStart adb qPtr)
-      stepQ i a r = callback i r >> withQueryPtr adb a (\qPtr -> queryStep adb qPtr r) >>= iterQ (i + 1) a
+      initQ _     = unsafeWithQueryPtr adb alloc (\qPtr -> queryStart adb qPtr)
+      stepQ i a r = callback i r >> unsafeWithQueryPtr adb a (\qPtr -> queryStep adb qPtr r) >>= iterQ (i + 1) a
       iterQ i a r = complete i a r >>= thenElseIfM (do { freeDatumFromAllocator a; return r }) (stepQ i (transform i r a) r)
   r0 <- initQ iteration
   iterQ (iteration + 1) alloc r0
