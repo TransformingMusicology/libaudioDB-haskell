@@ -53,10 +53,12 @@ module Sound.Audio.Database.Query ( QueryAllocator
 
 import           AudioDB.API
 import           Control.Exception (throw)
+import           Control.Monad (when)
 import qualified Data.Vector.Storable as DV
 import           Data.Maybe (catMaybes)
 import           Foreign (Ptr, peek, poke)
 import           Foreign.Marshal.Alloc (alloca, malloc, free)
+import           Foreign.Ptr (nullPtr)
 import           Sound.Audio.Features (datumSlice)
 import           Sound.Audio.Database
 import           Sound.Audio.Database.Types
@@ -192,13 +194,12 @@ applyDetachedQuery :: (ADBQuerySpec -> IO a) -> QueryAllocator -> IO a
 applyDetachedQuery f allocQuery = withDetachedQuery allocQuery f
 
 freeDatum :: ADBDatumPtr -> IO ()
-freeDatum datumPtr = free datumPtr
+freeDatum datumPtr = when (datumPtr /= nullPtr) $ free datumPtr
 
 freeQSpecDatum :: ADBQuerySpecPtr -> IO ()
 freeQSpecDatum qSpecPtr = do
   qSpec    <- peek qSpecPtr
-  let datumPtr = (queryid_datum . query_spec_qid) qSpec
-  free datumPtr
+  freeDatum $ (queryid_datum . query_spec_qid) qSpec
 
 freeDatumFromAllocator :: QueryAllocator -> IO ()
 freeDatumFromAllocator qAlloc = withDetachedQueryPtr qAlloc freeQSpecDatum
