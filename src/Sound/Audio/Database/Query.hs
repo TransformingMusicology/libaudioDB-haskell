@@ -522,7 +522,7 @@ mkSequenceQueryWithRotation :: ADBDatum        -- query features
 mkSequenceQueryWithRotation datum secToFrames ptsNN resultLen sqStart sqLen dist absThrsh qHopSize iHopSize rotations = (alloc, transform, isFinished)
   where
     alloc            = mkSequenceQuery slicedDatum secToFrames ptsNN resultLen 0 sqLen dist absThrsh qHopSize iHopSize
-    transform i r a  = mkSequenceQuery (rotateDatum (rotations!!(i - 1)) slicedDatum) secToFrames ptsNN resultLen 0 sqLen dist absThrsh qHopSize iHopSize
+    transform i r a  = (\qPtr -> freeDatumFromAllocator a >> mkSequenceQuery (rotateDatum (rotations!!(i - 1)) slicedDatum) secToFrames ptsNN resultLen 0 sqLen dist absThrsh qHopSize iHopSize qPtr)
     isFinished i _ r = return $ i > (length rotations)
 
     slicedDatum = case datumSlice datum secToFrames sqStart sqLen of
@@ -559,7 +559,7 @@ mkSequencePerTrackQueryWithRotation :: ADBDatum  -- query features
 mkSequencePerTrackQueryWithRotation datum secToFrames resultLen sqStart sqLen dist absThrsh rotations = (alloc, transform, isFinished)
   where
     alloc            = mkSequencePerTrackQuery datum secToFrames resultLen sqStart sqLen dist absThrsh
-    transform i r a  = mkSequencePerTrackQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames resultLen sqStart sqLen dist absThrsh
+    transform i r a  = (\qPtr -> freeDatumFromAllocator a >> mkSequencePerTrackQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames resultLen sqStart sqLen dist absThrsh qPtr)
     isFinished i _ r = return $ i > (length rotations)
 
 execSequencePerTrackQueryWithRotation :: (Ptr ADB)
@@ -590,7 +590,7 @@ mkNSequenceQueryWithRotation :: ADBDatum        -- query features
 mkNSequenceQueryWithRotation datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize rotations = (alloc, transform, isFinished)
   where
     alloc            = mkNSequenceQuery datum secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize
-    transform i r a  = mkNSequenceQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize
+    transform i r a  = (\qPtr -> freeDatumFromAllocator a >> mkNSequenceQuery (rotateDatum (rotations!!(i - 1)) datum) secToFrames ptsNN resultLen sqLen dist absThrsh qHopSize iHopSize qPtr)
     isFinished i _ r = return $ i > (length rotations)
 
 execNSequenceQueryWithRotation :: (Ptr ADB)
